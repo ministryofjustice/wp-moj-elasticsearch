@@ -1,16 +1,16 @@
 {
-  "name": "ministryofjustice/wp-moj-elasticsearch",
-  "description": "WP interface for managing elastic search",
-  "type": "wordpress-muplugin",
-  "require": {
-    "composer/installers": "^1.0"
-  },
-  "authors": [
-    {
-      "name": "Damien Wilson",
-      "email": "damien.wilson@digital.justice.gov.uk"
-    }
-  ],
+    "name": "ministryofjustice/wp-moj-elasticsearch",
+    "description": "WP interface for managing elastic search",
+    "type": "wordpress-muplugin",
+    "require": {
+        "composer/installers": "^1.0"
+    },
+    "authors": [
+        {
+            "name": "Damien Wilson",
+            "email": "damien.wilson@digital.justice.gov.uk"
+        }
+    ],
     "require-dev": {
         "10up/wp_mock": "0.4.2",
         "phpmd/phpmd": "^2.7",
