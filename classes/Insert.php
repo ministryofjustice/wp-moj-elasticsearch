@@ -2,6 +2,8 @@
 
 namespace MOJElasticSearch;
 
+use stdClass;
+
 class Insert extends ElasticSearch
 {
     public $allowed_post_types = [];
@@ -102,7 +104,7 @@ class Insert extends ElasticSearch
             'post_date' => $object->post_date,
             'post_content' => sanitize_text_field($object->post_content),
             'post_title' => $object->post_title,
-            'post_excerpt' => ($object->post_excerpt || new \stdClass())
+            'post_excerpt' => ($object->post_excerpt || new stdClass())
         ];
 
         if ($is_single) {
