@@ -6,7 +6,7 @@ use stdClass;
 
 class Insert extends ElasticSearch
 {
-    public $allowed_post_types = [];
+    public $allowed_post_types = ['condolences', 'page', 'event', 'news', 'post'];
 
     public function __construct()
     {
@@ -31,35 +31,40 @@ class Insert extends ElasticSearch
         # discard all but publish
         $status = get_post_status($post_id);
         if ($status !== 'publish') {
-            //return false;
-            self::debug('The post item status does not equal publish', $status, true);
+            return false;
         }
 
         $document = get_post($post_id);
 
         if (is_wp_error($document)) {
-            //return false;
-            self::debug('Could not get ' . $document->post_type . ' post from WP', $document->get_error_message(), true);
+            return false;
         }
 
         if (!$this->client()) {
-            //return false;
-            self::debug('ES Client has not been created', $this->client(), true);
+            return false;
         }
 
         # checks complete... prepare the document and index
         $params = $this->_params($document, $document->post_type);
-        self::debug('$params:', $params, true);
-        $response = $this->client()->index($params);
-        self::debug('Index Response:', $response, true);
+        try {
+            $response = $this->client()->index($params);
+        } catch (\Exception $e) {
+            trigger_error($e->getMessage(), E_USER_ERROR);
+        }
     }
 
     public function bulk()
     {
-        if (!isset($_GET["create-index"])) {
-            return null;
+        $options = Admin::options('moj_es');
+        if (!isset($options['bulk_activate']) || empty($options['bulk_activate']) || $options['bulk_activate'] === 'no') {
+            return false;
         }
 
+        # reset value
+        $options['bulk_activate'] = null;
+        update_option('moj_es' . Admin::OPTION_NAME, $options);
+
+        $count = 0;
         foreach ($this->allowed_post_types as $type) {
             $posts = get_posts([
                 'post_type' => $type,
@@ -73,11 +78,15 @@ class Insert extends ElasticSearch
             ];
 
             foreach ($posts as $key => $item) {
-                $params = $this->_params($item, $type, false);
+                $params = $this->_params($item, $type, $params);
 
                 // Every 1000 documents stop and send the bulk request
-                if ($key % 1000 == 0) {
-                    $responses = $this->client()->bulk($params);
+                if ($count % 1000 == 0) {
+                    try {
+                        $responses = $this->client()->bulk($params);
+                    } catch (\Exception $e) {
+                        trigger_error($e->getMessage(), E_USER_ERROR);
+                    }
 
                     // erase the old bulk request
                     $params = ['body' => []];
@@ -85,18 +94,25 @@ class Insert extends ElasticSearch
                     // unset the bulk response when you are done to save memory
                     unset($responses);
                 }
+                $count++;
             }
-        }
 
-        // Send the last batch if it exists
-        if (!empty($params['body'])) {
-            $responses = $this->client()->bulk($params);
+            // Send the last batch if it exists
+            if (!empty($params['body'])) {
+                try {
+                    $responses = $this->client()->bulk($params);
+                } catch (\Exception $e) {
+                    trigger_error($e->getMessage(), E_USER_ERROR);
+                }
+            }
+
+            # sleep
+            sleep(5);
         }
     }
 
-    private function _params($object, $type, $is_single = true)
+    private function _params($object, $type, $bulk = false)
     {
-        $params = [];
         $id = (string)$object->ID;
 
         $body = [
@@ -107,23 +123,23 @@ class Insert extends ElasticSearch
             'post_excerpt' => ($object->post_excerpt || new stdClass())
         ];
 
-        if ($is_single) {
+        if (!$bulk) {
             return [
                 'index' => ES_INDEX . '-' . $type,
-                'id'    => $id,
-                'body'  => $body
+                'id' => $id,
+                'body' => $body
             ];
         }
 
-        $params['body'][] = [
+        $bulk['body'][] = [
             'index' => [
                 '_index' => ES_INDEX . '-' . $type,
                 "_id" => $id
             ]
         ];
 
-        $params['body'][] = $body;
+        $bulk['body'][] = $body;
 
-        return $params;
+        return $bulk;
     }
 }

@@ -89,6 +89,22 @@ class Admin
             $this->_optionGroup(),
             $this->prefix . '_api_section'
         );
+
+        add_settings_section(
+            $this->prefix . '_bulk_section',
+            __('Bulk Inserts', 'wp-moj-elasticsearch'),
+            [$this, 'bulkSectionIntro'],
+            $this->_optionGroup()
+        );
+
+
+        add_settings_field(
+            $this->prefix . '_checkbox_bulk',
+            __('Bulk Insert?', 'wp-moj-elasticsearch'),
+            [$this, 'mojESCheckboxBulkRender'],
+            $this->_optionGroup(),
+            $this->prefix . '_bulk_section'
+        );
     }
 
     public function mojESTextHostRender()
@@ -144,6 +160,14 @@ class Admin
         <?php
     }
 
+    public function mojESCheckboxBulkRender()
+    {
+        $options = $this->_optionsArray();
+        ?>
+        <input type='checkbox' name='<?= $this->optionName()?>[bulk_activate]'
+               value='yes' <?= checked('yes', $options['bulk_activate'] ?? '') ?>>
+        <?php
+    }
 
     public function hostSectionIntro()
     {
@@ -157,6 +181,11 @@ class Admin
         $heading = __('Entering API access information', 'wp-moj-elasticsearch');
         $description = __('Create an API ID and Key in Kibana under the Security section "API Keys" and enter the details here', 'wp-moj-elasticsearch');
         echo '<strong>' . $heading . '</strong><br>' . $description;
+    }
+
+    public function bulkSectionIntro()
+    {
+        _e('This section will help you bulk insert all posts in to Elastic Search indexes.', 'wp-moj-elasticsearch');
     }
 
     public function mojEs()
@@ -196,5 +225,17 @@ class Admin
     public static function options($namespace)
     {
         return get_option($namespace . self::OPTION_NAME);
+    }
+
+    public function updateOption($key, $value)
+    {
+        $options = $this->_optionsArray();
+
+        if (!isset($options[$key])) {
+            return false;
+        }
+
+        $options[$key] = $value;
+        update_option($this->optionName(), $options);
     }
 }
