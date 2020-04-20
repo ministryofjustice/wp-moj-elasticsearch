@@ -16,11 +16,11 @@ class Insert extends ElasticSearch
     public function actions()
     {
         # ACTION HOOKS
-        add_action('save_post', [$this, 'insertPost']);
-        add_action('plugins_loaded', [$this, 'generate_index_data_file']);
+        add_action('save_post', [$this, 'document']);
+        add_action('plugins_loaded', [$this, 'bulk']);
     }
 
-    public function insertPost($post_id)
+    public function document($post_id)
     {
         if ($parent_id = wp_is_post_revision($post_id)) {
             $post_id = $parent_id;
@@ -47,6 +47,7 @@ class Insert extends ElasticSearch
 
         # checks complete... prepare the document and index
         $params = $this->_params($document, $document->post_type);
+        self::debug('$params:', $params, true);
         $response = $this->client()->index($params);
         self::debug('Index Response:', $response, true);
     }
@@ -54,7 +55,7 @@ class Insert extends ElasticSearch
     public function bulk()
     {
         if (!isset($_GET["create-index"])) {
-            return;
+            return null;
         }
 
         foreach ($this->allowed_post_types as $type) {
@@ -70,7 +71,7 @@ class Insert extends ElasticSearch
             ];
 
             foreach ($posts as $key => $item) {
-                $params = $this->_params($item, $type);
+                $params = $this->_params($item, $type, false);
 
                 // Every 1000 documents stop and send the bulk request
                 if ($key % 1000 == 0) {
@@ -91,10 +92,26 @@ class Insert extends ElasticSearch
         }
     }
 
-    private function _params($object, $type)
+    private function _params($object, $type, $is_single = true)
     {
         $params = [];
         $id = (string)$object->ID;
+
+        $body = [
+            'ID' => $id,
+            'post_date' => $object->post_date,
+            'post_content' => sanitize_text_field($object->post_content),
+            'post_title' => $object->post_title,
+            'post_excerpt' => ($object->post_excerpt || new \stdClass())
+        ];
+
+        if ($is_single) {
+            return [
+                'index' => ES_INDEX . '-' . $type,
+                'id'    => $id,
+                'body'  => $body
+            ];
+        }
 
         $params['body'][] = [
             'index' => [
@@ -103,12 +120,8 @@ class Insert extends ElasticSearch
             ]
         ];
 
-        return $params['body'][] = [
-            'ID' => $id,
-            'post_date' => $object->post_date,
-            'post_content' => sanitize_text_field($object->post_content),
-            'post_title' => $object->post_title,
-            'post_excerpt' => ($object->post_excerpt || new \stdClass())
-        ];
+        $params['body'][] = $body;
+
+        return $params;
     }
 }
