@@ -107,7 +107,7 @@ class Admin
 
         add_settings_field(
             $this->prefix . '_checkbox_bulk',
-            __('Bulk Insert?', 'wp-moj-elasticsearch'),
+            __('Bulk insert now?', 'wp-moj-elasticsearch'),
             [$this, 'mojESCheckboxBulkRender'],
             $this->_optionGroup(),
             $this->prefix . '_bulk_section'
@@ -213,7 +213,9 @@ class Admin
 
     public function bulkSectionIntro()
     {
-        _e('This section will help you bulk insert posts into Elastic Search indexes.', 'wp-moj-elasticsearch');
+        $heading = __('Manage bulk inserts into Elastic Search indexes', 'wp-moj-elasticsearch');
+        $description = __('Start by selecting the post types you would like to sync with ES.', 'wp-moj-elasticsearch');
+        echo '<strong>' . $heading . '</strong><br>' . $description;
     }
 
     public function mojEs()
