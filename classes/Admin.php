@@ -97,6 +97,13 @@ class Admin
             $this->_optionGroup()
         );
 
+        add_settings_field(
+            $this->prefix . '_multi_bulk',
+            __('Post types to import', 'wp-moj-elasticsearch'),
+            [$this, 'mojESMultiBulkRender'],
+            $this->_optionGroup(),
+            $this->prefix . '_bulk_section'
+        );
 
         add_settings_field(
             $this->prefix . '_checkbox_bulk',
@@ -121,7 +128,7 @@ class Admin
     public function mojESTextPortRender()
     {
         $options = $this->_optionsArray();
-        $description = __('The default port is <em>9200</em>', 'wp-moj-elasticsearch');
+        $description = __('Default port is <em>9200</em>', 'wp-moj-elasticsearch');
 
         ?>
         <input type="text" value="<?= $options['host_port'] ?: '' ?>" name='<?= $this->optionName()?>[host_port]'>
@@ -132,14 +139,14 @@ class Admin
     public function mojESSelectPortActiveRender()
     {
         $options = $this->_optionsArray();
-        $description = __('You might say No if the port number isn\'t included in your host', 'wp-moj-elasticsearch');
+        $description = __('For instance; you might select No if the port number isn\'t needed in your host name', 'wp-moj-elasticsearch');
         ?>
         <select name='<?= $this->optionName()?>[host_port_ok]'>
             <option value='' disabled="disabled">Use the port number?</option>
             <option value='no' <?php selected($options['host_port_ok'], 'no'); ?>>No</option>
             <option value='yes' <?php selected($options['host_port_ok'], 'yes'); ?>>Yes</option>
         </select>
-
+        <p><?= $description ?></p>
         <?php
     }
 
@@ -169,6 +176,27 @@ class Admin
         <?php
     }
 
+    public function mojESMultiBulkRender()
+    {
+        $options = $this->_optionsArray();
+        $post_types_bulk = $options['bulk_post_types'] ?? [];
+        $post_types = get_post_types(['public' => true, 'exclude_from_search' => false], 'objects');
+
+        $output = '';
+        foreach ($post_types as $type) {
+            $label = ucwords(str_replace(['_', '-'], ' ', $type->name));
+            $selected = (in_array($type->name, $post_types_bulk) ? ' selected="selected"' : '');
+            $output .= '<option value="' . $type->name . '"' . $selected .'>' . $label . '</option>';
+        }
+        ?>
+        <select name='<?= $this->optionName()?>[bulk_post_types][]' multiple="multiple" size="8">
+            <option value='' disabled="disabled">Select multiple</option>
+            <?= $output ?>
+        </select>
+        <p><small>There are <?= count($post_types) ?> to choose from.</small></p>
+        <?php
+    }
+
     public function hostSectionIntro()
     {
         $heading = __('Enter the host address info for your ES server', 'wp-moj-elasticsearch');
@@ -185,7 +213,7 @@ class Admin
 
     public function bulkSectionIntro()
     {
-        _e('This section will help you bulk insert all posts in to Elastic Search indexes.', 'wp-moj-elasticsearch');
+        _e('This section will help you bulk insert posts into Elastic Search indexes.', 'wp-moj-elasticsearch');
     }
 
     public function mojEs()

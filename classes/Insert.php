@@ -6,8 +6,6 @@ use stdClass;
 
 class Insert extends ElasticSearch
 {
-    public $allowed_post_types = ['condolences', 'page', 'event', 'news', 'post'];
-
     public function __construct()
     {
         $this->actions();
@@ -65,7 +63,8 @@ class Insert extends ElasticSearch
         update_option('moj_es' . Admin::OPTION_NAME, $options);
 
         $count = 0;
-        foreach ($this->allowed_post_types as $type) {
+        $types = $options['bulk_post_types'] ?? [];
+        foreach ($types as $type) {
             $posts = get_posts([
                 'post_type' => $type,
                 'cache_results' => false,
