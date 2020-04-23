@@ -10,6 +10,8 @@ trait ClientConnect
 
     protected $options;
 
+    public static $socket_failed = false;
+
     public function client()
     {
         return $this->client ?? $this->setClient();
@@ -48,5 +50,19 @@ trait ClientConnect
         }
 
         return [$parsed['host'] . $port];
+    }
+
+    public static function live($options)
+    {
+        if (self::$socket_failed) {
+            return false;
+        }
+
+        if (!@fsockopen($options['host'], ($options['port'] ?? '9200'))) {
+            self::$socket_failed = true;
+            return false;
+        }
+
+        return true;
     }
 }

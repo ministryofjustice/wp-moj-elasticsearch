@@ -9,7 +9,6 @@ class Insert extends ElasticSearch
     public function __construct()
     {
         $this->actions();
-
         parent::__construct();
     }
 
