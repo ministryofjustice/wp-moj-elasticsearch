@@ -192,7 +192,10 @@ class Admin
         $output = '';
         foreach ($post_types as $type) {
             $label = ucwords(str_replace(['_', '-'], ' ', $type->name));
-            $selected = (in_array($type->name, $post_types_bulk) ? ' selected="selected"' : '');
+            $selected = '';
+            if (!empty($post_types_bulk)) {
+                $selected = (in_array($type->name, $post_types_bulk) ? ' selected="selected"' : '');
+            }
             $output .= '<option value="' . $type->name . '"' . $selected . '>' . $label . '</option>';
         }
         ?>
@@ -230,7 +233,13 @@ class Admin
         $title = __('MoJ Elastic Search', $this->text_domain);
         $title_admin = __('admin page', $this->text_domain);
         ?>
-        <form action='options.php' method='post'>
+        <style>
+            .<?= $this->menu_slug ?> h2 {
+                <?= $this->styles('heading', false) ?>
+            }
+        </style>
+
+        <form action="options.php" method="post" class="<?= $this->menu_slug ?>">
 
             <h1><?= $title ?> <small style="color:#aaaaaa">. <?= $title_admin ?></small></h1>
 
@@ -284,23 +293,28 @@ class Admin
         printf('<div class="%1$s"><p>%2$s</p></div>', esc_attr($class), esc_html($message));
     }
 
-    public function styles($section)
+    public function styles($section, $include_style_attr = true)
     {
         $fields_all = 'min-width:300px';
         $styles = [
-            'intro' => 'background-color: #ffffff;padding: 12px 20px;display: inline-block;border: 1px solid #ccc;',
+            'intro' => 'background-color:#2c5d94;color:#f1f2f2;padding: 12px 20px;display: inline-block;border: 1px solid #fff;max-width:50rem;min-width:30rem;',
             'fields' => [
                 'all' => $fields_all .'',
                 'text' => $fields_all .'',
                 'select' => $fields_all .'',
                 'checkbox' => $fields_all .'',
                 'password' => $fields_all .''
-            ]
+            ],
+            'heading' => 'color:#0d8730'
         ];
 
         $style = $this->_keyValue($styles, $section);
         if ($style) {
-            return ' style="' . $style . '"';
+            if ($include_style_attr) {
+                return ' style="' . $style . '"';
+            }
+
+            return $style;
         }
 
         return '';
@@ -318,8 +332,6 @@ class Admin
             if (is_array($element)) {
                 $value = $this->_keyValue($element, $key);
                 if (!empty($value)) {
-                    var_dump($value);
-                    die($value);
                     return $value;
                 }
             }
