@@ -29,8 +29,8 @@ class Admin
     public function settingsPage()
     {
         add_options_page(
-            'MoJ Elastic Search',
-            'MoJ Elastic Search',
+            'MoJ Elasticsearch',
+            'MoJ Elasticsearch',
             'manage_options',
             $this->menu_slug,
             [$this, 'mojEs']
@@ -223,14 +223,14 @@ class Admin
 
     public function bulkSectionIntro()
     {
-        $heading = __('Manage bulk inserts into Elastic Search indexes', $this->text_domain);
+        $heading = __('Manage bulk inserts into Elasticsearch indexes', $this->text_domain);
         $description = __('Start by selecting the post types you would like to sync with ES.', $this->text_domain);
         echo '<div' . $this->styles('intro') . '><strong>' . $heading . '</strong><br>' . $description . '</div>';
     }
 
     public function mojEs()
     {
-        $title = __('MoJ Elastic Search', $this->text_domain);
+        $title = __('MoJ Elasticsearch', $this->text_domain);
         $title_admin = __('admin page', $this->text_domain);
         ?>
         <style>

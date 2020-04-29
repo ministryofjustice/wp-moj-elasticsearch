@@ -42,7 +42,7 @@ class Insert extends ElasticSearch
         }
 
         # checks complete... prepare the document and index
-        $params = $this->_params($document, $document->post_type);
+        $params = $this->_params($document);
         try {
             $response = $this->client()->index($params);
         } catch (\Exception $e) {
@@ -76,7 +76,7 @@ class Insert extends ElasticSearch
             ];
 
             foreach ($posts as $key => $item) {
-                $params = $this->_params($item, $type, $params);
+                $params = $this->_params($item, $params);
 
                 // Every 1000 documents stop and send the bulk request
                 if ($count % 1000 == 0) {
@@ -109,7 +109,7 @@ class Insert extends ElasticSearch
         }
     }
 
-    private function _params($object, $type, $bulk = false)
+    private function _params($object, $bulk = false)
     {
         $id = (string)$object->ID;
 
@@ -123,7 +123,7 @@ class Insert extends ElasticSearch
 
         if (!$bulk) {
             return [
-                'index' => ES_INDEX . '-' . $type,
+                'index' => ES_INDEX,
                 'id' => $id,
                 'body' => $body
             ];
@@ -131,7 +131,7 @@ class Insert extends ElasticSearch
 
         $bulk['body'][] = [
             'index' => [
-                '_index' => ES_INDEX . '-' . $type,
+                '_index' => ES_INDEX,
                 "_id" => $id
             ]
         ];

@@ -4,7 +4,7 @@ namespace MOJElasticSearch;
 
 trait Debug
 {
-    public static function debug($message, $var, $die = false)
+    public static function this($heading, $var, $die = false)
     {
         $bt = debug_backtrace();
         $function = $bt[2]['function'];
@@ -16,7 +16,7 @@ trait Debug
         $info .= "<em>Called in function " . $function . ", " . $line . "</span>\nType: " . gettype($var) . "</em>";
         $info .= "\n-------\n\n";
 
-        $output = "<pre>" . $info . print_r($message, true) . "\n\n" . print_r($var, true) . "\n\n</pre>";
+        $output = "<pre>" . $info . print_r($heading, true) . "\n\n" . print_r($var, true) . "\n\n</pre>";
         if (defined('DEBUG_ECHO')) {
             echo $output;
             if ($die) {
