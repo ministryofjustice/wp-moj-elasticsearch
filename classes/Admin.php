@@ -124,10 +124,10 @@ class Admin
     public function mojESTextHostRender()
     {
         $options = $this->_optionsArray();
-        $description = __('Use a fully qualified domain name or an IPv4 address.', $this->text_domain);
+        $description = __('Use an AWS endpoint url or an IPv4 address.', $this->text_domain);
 
         ?>
-        <input type="text" value="<?= $options['host'] ?: '' ?>" name='<?= $this->optionName() ?>[host]'>
+        <input<?= $this->styles('text') ?> type="text" value="<?= $options['host'] ?: '' ?>" name='<?= $this->optionName() ?>[host]'>
         <p><?= $description ?></p>
         <?php
     }
@@ -162,7 +162,7 @@ class Admin
         $options = $this->_optionsArray();
 
         ?>
-        <input type="password" value="<?= $options['api_id'] ?: '' ?>" name='<?= $this->optionName() ?>[api_id]'>
+        <input<?= $this->styles('text') ?> type="password" value="<?= $options['api_id'] ?: '' ?>" name='<?= $this->optionName() ?>[api_id]'>
         <?php
     }
 
@@ -170,7 +170,7 @@ class Admin
     {
         $options = $this->_optionsArray();
         ?>
-        <input type="password" value="<?= $options['api_key'] ?: '' ?>" name='<?= $this->optionName() ?>[api_key]'>
+        <input<?= $this->styles('text') ?> type="password" value="<?= $options['api_key'] ?: '' ?>" name='<?= $this->optionName() ?>[api_key]'>
         <?php
     }
 
@@ -210,7 +210,7 @@ class Admin
     public function hostSectionIntro()
     {
         $heading = __('Enter the host address info for your ES server', $this->text_domain);
-        $description = __('Please refer to ES documentation for guidance on locating your connection URL (host)', $this->text_domain);
+        $description = __('Please note that this entry will assist in signing AWS requests to the ES server and is identical to the', $this->text_domain);
         echo '<div' . $this->styles('intro') . '><strong>' . $heading . '</strong><br>' . $description . '</div>';
     }
 
@@ -290,7 +290,7 @@ class Admin
         $class = 'notice notice-error';
         $message = __('Please check your settings below. A connection to the ES server cannot be established.', $this->text_domain);
 
-        printf('<div class="%1$s"><p>%2$s</p></div>', esc_attr($class), esc_html($message));
+        //printf('<div class="%1$s"><p>%2$s</p></div>', esc_attr($class), esc_html($message));
     }
 
     public function styles($section, $include_style_attr = true)
@@ -300,7 +300,7 @@ class Admin
             'intro' => 'background-color:#2c5d94;color:#f1f2f2;padding: 12px 20px;display: inline-block;border: 1px solid #fff;max-width:50rem;min-width:30rem;',
             'fields' => [
                 'all' => $fields_all .'',
-                'text' => $fields_all .'',
+                'text' => 'min-width:390px',
                 'select' => $fields_all .'',
                 'checkbox' => $fields_all .'',
                 'password' => $fields_all .''
