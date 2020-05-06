@@ -22,8 +22,8 @@ require_once('classes/Admin.php');
 
 # get the classes
 require_once('classes/ElasticSearch.php');
-require_once('classes/SignAmazonESRequests.php');
-$moj_es_request = new \MOJElasticSearch\SignAwsEsRequests();
+//require_once('classes/SignAmazonESRequests.php');
+//$moj_es_request = new \MOJElasticSearch\SignAwsEsRequests();
 //require_once('classes/Insert.php');
 //require_once('classes/Query.php');
 
