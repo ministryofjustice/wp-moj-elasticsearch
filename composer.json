@@ -7,8 +7,7 @@
     },
     "authors": [
         {
-            "name": "Damien Wilson",
-            "email": "damien.wilson@digital.justice.gov.uk"
+            "name": "Ministry of Justice"
         }
     ],
     "require-dev": {
@@ -26,9 +25,7 @@
     },
     "autoload": {
         "psr-4": {
-            "classes\\ElasticSearch\\": "classes/ElasticSearch/",
-            "classes\\Insert\\": "classes/Insert/",
-            "classes\\Query\\": "classes/Query/"
+            "MOJElasticSearch\\": "."
         }
     }
 }

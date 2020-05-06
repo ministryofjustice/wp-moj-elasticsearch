@@ -1,6 +1,10 @@
 <?php
 
-namespace MOJElasticSearch;
+namespace MOJElasticSearch\Classes;
+
+use MOJElasticSearch\Classes\Admin;
+use MOJElasticSearch\Traits\ClientConnect;
+use MOJElasticSearch\Traits\Debug;
 
 /**
  * Class ElasticSearch
@@ -8,7 +12,6 @@ namespace MOJElasticSearch;
  */
 class ElasticSearch
 {
-    use ClientConnect, Debug;
 
     public function __construct()
     {
