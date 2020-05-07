@@ -6,8 +6,10 @@
  * Version:     1.1.1
  * Author:      Ministry of Justice - Justice on the Web
  * Text domain: wp-moj-elasticsearch
- * Author URI:  https://github.com/ministryofjustice/wp-moj-elasticsearch
+ * Author URI:  https://ministryofjustice.github.io/justice-on-the-web
  * License:     MIT License
+ * 
+ * Last but not least, shout out to Damien the founding author :)
  **/
 
 defined('ABSPATH') or die('No humans allowed.');
