@@ -1,8 +1,6 @@
 <?php
 
-namespace MOJElasticSearch;
-
-use Elasticsearch\ClientBuilder;
+namespace MOJElasticSearch\Traits;
 
 trait ClientConnect
 {

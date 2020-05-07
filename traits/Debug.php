@@ -1,6 +1,6 @@
 <?php
 
-namespace MOJElasticSearch;
+namespace MOJElasticSearch\Traits;
 
 trait Debug
 {
