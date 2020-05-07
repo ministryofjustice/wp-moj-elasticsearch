@@ -2,10 +2,10 @@
 
 namespace MOJElasticSearch;
 
+use MOJElasticSearch\ElasticSearch as ElasticSearch;
+
 class Admin
 {
-    use Debug;
-
     public $prefix = 'moj_es';
     public $menu_slug = 'moj-es';
     public $text_domain = 'wp-moj-elasticsearch';
