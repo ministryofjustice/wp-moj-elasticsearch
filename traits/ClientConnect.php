@@ -1,6 +1,6 @@
 <?php
 
-namespace MOJElasticSearch\Traits;
+namespace MOJElasticSearch;
 
 trait ClientConnect
 {

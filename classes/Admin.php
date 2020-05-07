@@ -1,11 +1,11 @@
 <?php
 
-namespace MOJElasticSearch\Classes;
-
-use MOJElasticSearch\Classes\ElasticSearch;
+namespace MOJElasticSearch;
 
 class Admin
 {
+    use Debug;
+
     public $prefix = 'moj_es';
     public $menu_slug = 'moj-es';
     public $text_domain = 'wp-moj-elasticsearch';
@@ -15,7 +15,6 @@ class Admin
 
     public function __construct()
     {
-
         // if (!ElasticSearch::live(self::options($this->prefix))) {
         //     add_action('admin_notices', [$this, 'socketFailureNotice']);
         // }

@@ -8,17 +8,18 @@
  * Text domain: wp-moj-elasticsearch
  * Author URI:  https://ministryofjustice.github.io/justice-on-the-web
  * License:     MIT License
- * 
+ *
  * Last but not least, shout out to Damien the founding author :)
  **/
 
 defined('ABSPATH') or die('No humans allowed.');
-define('ES_INDEX', 'intranet');
+
+global $root_dir;
 
 // Load all our classes from PSR4 autoloader
-require __DIR__ . '/vendor/autoload.php';
+require $root_dir . '/vendor/autoload.php';
 
-use MOJElasticSearch\Classes\Admin;
+use MOJElasticSearch\Admin;
 
 // Check WP hasn't malfunctioned is ready to go.
 if (!function_exists('add_action')) {
