@@ -25,7 +25,10 @@
     },
     "autoload": {
         "psr-4": {
-            "MOJElasticSearch\\": "."
+            "MOJElasticSearch\\": [
+                "classes/",
+                "traits/"
+            ]
         }
     }
 }

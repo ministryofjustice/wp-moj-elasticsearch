@@ -1,8 +1,8 @@
 <?php
 
-namespace MOJElasticSearch\Classes;
+namespace MOJElasticSearch;
 
-use MOJElasticSearch\Classes\ElasticSearch;
+use MOJElasticSearch\ElasticSearch as ElasticSearch;
 
 class Admin
 {
@@ -15,7 +15,6 @@ class Admin
 
     public function __construct()
     {
-
         // if (!ElasticSearch::live(self::options($this->prefix))) {
         //     add_action('admin_notices', [$this, 'socketFailureNotice']);
         // }

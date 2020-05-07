@@ -1,6 +1,6 @@
 <?php
 
-namespace MOJElasticSearch\Classes;
+namespace MOJElasticSearch;
 
 define('DEBUG_ECHO', true);
 
