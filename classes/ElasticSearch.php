@@ -9,7 +9,7 @@ namespace MOJElasticSearch;
 class ElasticSearch
 {
     use ClientConnect, Debug;
-    
+
     public function __construct()
     {
         if (ElasticSearch::canRun()) {

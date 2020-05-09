@@ -3,7 +3,7 @@
  * Plugin name: WP MoJ ElasticSearch
  * Plugin URI:  https://github.com/ministryofjustice/wp-moj-elasticsearch
  * Description: WP interface for managing elastic search
- * Version:     1.1.1
+ * Version:     1.2.0
  * Author:      Ministry of Justice - Justice on the Web
  * Text domain: wp-moj-elasticsearch
  * Author URI:  https://ministryofjustice.github.io/justice-on-the-web
