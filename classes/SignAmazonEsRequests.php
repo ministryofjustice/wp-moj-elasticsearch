@@ -6,7 +6,7 @@ use Aws\Signature\SignatureV4;
 use Aws\Credentials\Credentials;
 use GuzzleHttp\Psr7\Request;
 
-class SignAmazonESRequests
+class SignAmazonEsRequests
 {
     use Debug;
 
