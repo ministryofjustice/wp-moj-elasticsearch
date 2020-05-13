@@ -3,7 +3,7 @@
  * Plugin name: WP MoJ ElasticSearch
  * Plugin URI:  https://github.com/ministryofjustice/wp-moj-elasticsearch
  * Description: WP interface for managing elastic search
- * Version:     1.2.0
+ * Version:     1.2.1
  * Author:      Ministry of Justice - Justice on the Web
  * Text domain: wp-moj-elasticsearch
  * Author URI:  https://ministryofjustice.github.io/justice-on-the-web
@@ -13,6 +13,9 @@
  **/
 
 defined('ABSPATH') or die('No humans allowed.');
+
+// debug output related constant
+define('DEBUG_ECHO', false);
 
 // Check WP hasn't malfunctioned is ready to go.
 if (!function_exists('add_action')) {
@@ -28,9 +31,12 @@ if (empty($root_dir)) {
     return;
 }
 
+
 // Load all our classes from PSR4 autoloader
 require $root_dir . '/vendor/autoload.php';
 
+use MOJElasticSearch\SignAmazonEsRequests;
 use MOJElasticSearch\Admin;
 
+new SignAmazonEsRequests();
 new Admin();
