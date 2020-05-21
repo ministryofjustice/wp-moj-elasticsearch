@@ -43,7 +43,7 @@ class ManageData extends Admin
 
     public function ManageDataPage()
     {
-        echo '<strong>' . $heading . '</strong><br>' . $description . '</div>';
+        echo '<h3>' . $heading . '</h3><br>' . $description . '</div>';
     }
 
     protected function _optionGroup2()
