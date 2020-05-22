@@ -26,10 +26,11 @@ class ManageData extends Admin
 
     public function actions()
     {
-        add_action('admin_init', [$this, 'settingsInit2']);
+        add_action('admin_init', [$this, 'pageSettings']);
+        add_action('admin_init', [$this, 'exportFile']);
     }
     
-    public function settingsInit2()
+    public function pageSettings()
     {
         register_setting($this->_optionGroup2(), $this->optionName2());
 
@@ -43,8 +44,26 @@ class ManageData extends Admin
 
     public function ManageDataPage()
     {
-        echo '<h3>Export</h3><br>add button</div>';
+
+        submit_button(__( 'Export File', 'textdomain' ), 'primary', 'weighting', false, 'href="?page=moj-es&tab=manage_data&export=weighting"');
     }
+
+    public function exportFile()
+    {
+        $fileName = 'ep_settings_weighting.json';
+        $file = plugin_dir_path(__DIR__) . "settings/" . $fileName;
+
+        if (isset($_GET['weighting']))
+        {
+            header("Content-type: application/json",true,200);
+            header("Content-Disposition: attachment; filename=ep_settings_weighting.json");
+            header("Pragma: no-cache");
+            header("Expires: 0");
+            echo $file;
+            exit();
+          }
+    }
+
 
     protected function _optionGroup2()
     {

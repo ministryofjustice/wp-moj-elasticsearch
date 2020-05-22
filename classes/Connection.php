@@ -29,10 +29,10 @@ class Connection extends Admin
 
     public function actions()
     {
-        add_action('admin_init', [$this, 'settingsInit']);
+        add_action('admin_init', [$this, 'pageSettings']);
     }
     
-    public function settingsInit()
+    public function pageSettings()
     {
         register_setting($this->_optionGroup(), $this->optionName());
 
