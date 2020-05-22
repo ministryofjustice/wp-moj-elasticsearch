@@ -65,23 +65,23 @@ class Admin
 
         $homeTab = ($activeTab === 'home') ? 'nav-tab-active' : 'nav-tab-inactive';
         $connectionSettingsTab = ($activeTab === 'connection_settings') ? 'nav-tab-active' : 'nav-tab-inactive';
-        $exportImportTab = ($activeTab === 'manage_data') ? 'nav-tab-active' : 'nav-tab-inactive';
+        $ManageDataTab = ($activeTab === 'manage_data') ? 'nav-tab-active' : 'nav-tab-inactive';
 
         echo '<h2 class="nav-tab-wrapper">';
         echo '<a href="?page=moj-es&tab=home" class="nav-tab ' . $homeTab . '">Home</a>';
         echo '<a href="?page=moj-es&tab=connection_settings" class="nav-tab ' . $connectionSettingsTab . '">Connection settings</a>';
-        echo '<a href="?page=moj-es&tab=manage_data" class="nav-tab ' . $exportImportTab . '">Manage Data</a>';
+        echo '<a href="?page=moj-es&tab=manage_data" class="nav-tab ' . $ManageDataTab . '">Manage Data</a>';
         echo '</h2>';
         
         // Tab content display depending on what tab is active
         switch ($activeTab) {
             case 'manage_data':
-                $ExportImport = new ManageData();
-                settings_fields($ExportImport->_optionGroup2());
-                do_settings_sections($ExportImport->_optionGroup2());
+                $ManageData = new ManageData;
+                settings_fields($ManageData->_optionGroup2());
+                do_settings_sections($ManageData->_optionGroup2());
                 break;
             case 'connection_settings':
-                $Connection = new Connection();
+                $Connection = new Connection;
                 echo '<form action="options.php" method="post" class="<?= $this->menu_slug ?>">';
                 settings_fields($Connection->_optionGroup());
                 do_settings_sections($Connection->_optionGroup());
