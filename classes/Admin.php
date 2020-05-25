@@ -12,7 +12,7 @@ use MOJElasticSearch\ElasticSearch;
 use MOJElasticSearch\ManageData;
 use MOJElasticSearch\Connection;
 
-defined('ABSPATH') or die('No humans allowed.');
+defined('ABSPATH') or exit;
 
 class Admin
 {
@@ -76,9 +76,9 @@ class Admin
         // Tab content display depending on what tab is active
         switch ($activeTab) {
             case 'manage_data':
-                $ManageData = new ManageData;
-                settings_fields($ManageData->_optionGroup2());
-                do_settings_sections($ManageData->_optionGroup2());
+                do_settings_sections('manage-data-section');
+                do_settings_sections('manage-data-export-section');
+                do_settings_sections('manage-data-import-section');
                 break;
             case 'connection_settings':
                 $Connection = new Connection;
@@ -88,7 +88,7 @@ class Admin
                 submit_button();
                 break;
             default:
-                echo 'home';
+                echo '<h4>General plugin details here.</h4>';
                 break;
         }
     }
