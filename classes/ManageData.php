@@ -1,9 +1,10 @@
 <?php
+
 /**
  * MoJ Elasticpress plugin
- *  
+ *
  * Manage data and EP configuration
- * 
+ *
  * @since  0.1
  * @package wp-moj-elasticsearch
  */
@@ -12,66 +13,127 @@ namespace MOJElasticSearch;
 
 use MOJElasticSearch\ElasticSearch;
 
-defined('ABSPATH') or die('No humans allowed.');
+defined('ABSPATH') or exit;
 
 class ManageData extends Admin
 {
-    const OPTION_NAME = '_settings2';
-    const OPTION_GROUP = '_plugin2';
+    public $export_file_name = '/ep_settings_weighting.json';
+    public $export_file_dir = '';
+    public $weighting_file = '';
+    public $import_notification = null;
 
     public function __construct()
     {
         $this->actions();
+        $this->export_file_dir = trailingslashit(plugin_dir_path(dirname(__FILE__))) . 'settings';
+        $this->weighting_file = $this->export_file_dir . $this->export_file_name;
     }
 
     public function actions()
     {
         add_action('admin_init', [$this, 'pageSettings']);
-        add_action('admin_init', [$this, 'exportFile']);
     }
     
     public function pageSettings()
     {
-        register_setting($this->_optionGroup2(), $this->optionName2());
-
         add_settings_section(
             $this->prefix . '_manage_data_section',
             __('Manage data and EP configuration', $this->text_domain),
-            [$this, 'ManageDataPage'],
-            $this->_optionGroup2()
+            [$this, 'manageDataIntro'],
+            'manage-data-section'
         );
-     }
 
-    public function ManageDataPage()
-    {
+        add_settings_section(
+            $this->prefix . '_manage_data_import_section',
+            __('Export data:', $this->text_domain),
+            [$this, 'exportEpWeighting'],
+            'manage-data-export-section'
+        );
 
-        submit_button(__( 'Export File', 'textdomain' ), 'primary', 'weighting', false, 'href="?page=moj-es&tab=manage_data&export=weighting"');
+        add_settings_section(
+            $this->prefix . '_manage_data_import_section',
+            __('Import data:', $this->text_domain),
+            [$this, 'importEpWeighting'],
+            'manage-data-import-section'
+        );
     }
 
-    public function exportFile()
+    public function manageDataIntro()
     {
-        $fileName = 'ep_settings_weighting.json';
-        $file = plugin_dir_path(__DIR__) . "settings/" . $fileName;
-
-        if (isset($_GET['weighting']))
-        {
-            header("Content-type: application/json",true,200);
-            header("Content-Disposition: attachment; filename=ep_settings_weighting.json");
-            header("Pragma: no-cache");
-            header("Expires: 0");
-            echo $file;
-            exit();
-          }
+        echo 'Mange settings and configurations in ElasticPress. Import and Export data.';
     }
 
-
-    protected function _optionGroup2()
+    /**
+     * Import JSON file
+     */
+    public function importEpWeighting()
     {
-        return $this->prefix . self::OPTION_GROUP;
+        echo '<form method="POST" enctype="multipart/form-data">';
+        echo '<label><strong>WARNING:</strong> This will overwrite ElasticPress settings.</label><br>';
+        echo '<label>Upload your JSON file:</label>';
+        echo '<input type="file" name="file-weighting-json" />';
+        echo '<input type="submit" name="submit-wp-weighting-json" value="Import File"><br><br>';
+        echo '</form>';
+
+        // Check and make dir if it doesn't exist
+        wp_mkdir_p($this->export_file_dir);
+
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            if (isset($_POST['submit-wp-weighting-json'])) {
+                // Check file size
+                if ($_FILES['file-weighting-json']['size'] > 5485760) {
+                    echo '<strong>File imported is too big (over 5MB limit).</strong>';
+                    return;
+                }
+                
+                $import_notification = move_uploaded_file($_FILES['file-weighting-json']["tmp_name"], $this->weighting_file);
+
+                // Check tmp file has been moved to plugin location
+                if ($import_notification) {
+                    echo '<strong>Uploaded to plugin successful.<strong><br>';
+                } else {
+                    echo '<strong>Upload to plugin failed, issue moving file to plugin directory. Likely permission issue.<strong><br>';
+                    return;
+                }
+
+                $ep_weighting = json_decode(file_get_contents($this->weighting_file), true);
+
+                // Check the JSON is decoded into an array.
+                if (!is_array($ep_weighting)) {
+                    echo '<strong>File data corrupted (not provided as an array). DB not updated.<strong><br>';
+                    return;
+                }
+
+                $db_update_notification = update_option('elasticpress_weighting', $ep_weighting);
+
+                // Check if DB was updated or not, convay message.
+                if ($db_update_notification) {
+                    echo '<strong>Database updated.<strong><br>';
+                } else {
+                    echo '<strong>Database not updated.<br>JSON data has not changed or 
+                    there was an issue updating the "elasticpress_weighting" WP option field.<strong><br>';
+                }
+            }
+        }
     }
 
-    public function optionName2()
+    /**
+     * Export JSON file
+     */
+    public function exportEpWeighting()
     {
-        return $this->prefix . self::OPTION_NAME;
+        echo '<form method="POST">';
+        submit_button(__('Export', $this->text_domain), 'secondary', 'export-save-settings');
+        echo '</form>';
+
+        if ($_SERVER['REQUEST_METHOD'] == 'POST') {
+            if (isset($_POST['export-save-settings'])) {
+                $ep_weighting = get_option('elasticpress_weighting');
+                $json_data = json_encode($ep_weighting, JSON_PRETTY_PRINT);
+
+                // Print JSON data to screen
+                echo $json_data;
+            }
+        }
     }
 }
