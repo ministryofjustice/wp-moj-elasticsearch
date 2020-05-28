@@ -2,7 +2,7 @@
 
 namespace MOJElasticSearch;
 
-trait ClientConnect
+trait FireHoseConnect
 {
     protected $client = null;
 

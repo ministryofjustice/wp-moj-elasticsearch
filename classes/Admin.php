@@ -8,24 +8,21 @@
 
 namespace MOJElasticSearch;
 
-use MOJElasticSearch\ElasticSearch;
-use MOJElasticSearch\ManageData;
-use MOJElasticSearch\Connection;
-
-defined('ABSPATH') or exit;
-
 class Admin
 {
+    use Auth;
+
     public $prefix = 'moj_es';
     public $menu_slug = 'moj-es';
     public $text_domain = 'wp-moj-elasticsearch';
 
     public function __construct()
     {
-        $this->actions();
+        self::auth();
+        $this->hooks();
     }
 
-    public function actions()
+    public function hooks()
     {
         add_action('admin_menu', [$this, 'settingsPage']);
     }
@@ -50,29 +47,29 @@ class Admin
         $title = __('MoJ ES', $this->text_domain);
         $title_admin = __('Extending the functionality of the ElasticPress plugin', $this->text_domain);
         ?>
-        
+
         <style>.<?= $this->menu_slug ?> h2 {<?= $this->styles('heading', false) ?>}</style>
-        
+
         <h1><?= $title ?> <small style="color:#aaaaaa">. <?= $title_admin ?></small></h1>
-        
+
         <?php
-                    
+
         /**
          * Tab generation and control
          */
         $activeTab = $_GET['tab'] ?? 'No value set';
-        $activeTab = $_GET['tab'] ?? 'home';
+        $activeTab = $_GET['tab'] ?? 'general';
 
-        $homeTab = ($activeTab === 'home') ? 'nav-tab-active' : 'nav-tab-inactive';
+        $homeTab = ($activeTab === 'general') ? 'nav-tab-active' : 'nav-tab-inactive';
         $connectionSettingsTab = ($activeTab === 'connection_settings') ? 'nav-tab-active' : 'nav-tab-inactive';
         $ManageDataTab = ($activeTab === 'manage_data') ? 'nav-tab-active' : 'nav-tab-inactive';
 
         echo '<h2 class="nav-tab-wrapper">';
-        echo '<a href="?page=moj-es&tab=home" class="nav-tab ' . $homeTab . '">Home</a>';
+        echo '<a href="?page=moj-es&tab=home" class="nav-tab ' . $homeTab . '">Information</a>';
         echo '<a href="?page=moj-es&tab=connection_settings" class="nav-tab ' . $connectionSettingsTab . '">Connection settings</a>';
         echo '<a href="?page=moj-es&tab=manage_data" class="nav-tab ' . $ManageDataTab . '">Manage Data</a>';
         echo '</h2>';
-        
+
         // Tab content display depending on what tab is active
         switch ($activeTab) {
             case 'manage_data':

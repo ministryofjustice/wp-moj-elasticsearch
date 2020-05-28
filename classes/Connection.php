@@ -8,37 +8,28 @@
 
 namespace MOJElasticSearch;
 
-use MOJElasticSearch\ElasticSearch;
-use MOJElasticSearch\ImportExport;
-
-defined('ABSPATH') or die('No humans allowed.');
-
 class Connection extends Admin
 {
-    const OPTION_NAME = '_settings';
-    const OPTION_GROUP = '_plugin';
+    const OPTION_NAME = '_connection_settings';
+    const OPTION_GROUP = '_moj_elasticsearch';
 
     public function __construct()
     {
-        // if (!ElasticSearch::live(self::options($this->prefix))) {
-        //     add_action('admin_notices', [$this, 'socketFailureNotice']);
-        // }
-
-        $this->actions();
+        $this->hooks();
     }
 
-    public function actions()
+    public function hooks()
     {
         add_action('admin_init', [$this, 'pageSettings']);
     }
-    
+
     public function pageSettings()
     {
         register_setting($this->_optionGroup(), $this->optionName());
 
         add_settings_section(
             $this->prefix . '_host_section',
-            __('Connection', $this->text_domain),
+            __('Firehose Connection', $this->text_domain),
             [$this, 'hostSectionIntro'],
             $this->_optionGroup()
         );

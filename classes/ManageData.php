@@ -13,27 +13,23 @@ namespace MOJElasticSearch;
 
 use MOJElasticSearch\ElasticSearch;
 
-defined('ABSPATH') or exit;
-
 class ManageData extends Admin
 {
-    public $export_file_name = '/ep_settings_weighting.json';
-    public $export_file_dir = '';
+    public $export_file_name = 'ep_settings_weighting.json';
     public $weighting_file = '';
-    public $import_notification = null;
 
     public function __construct()
     {
-        $this->actions();
-        $this->export_file_dir = trailingslashit(plugin_dir_path(dirname(__FILE__))) . 'settings';
-        $this->weighting_file = $this->export_file_dir . $this->export_file_name;
+        parent::__construct();
+        $this->hooks();
+        $this->weighting_file = $this->exportDirectory() . $this->export_file_name;
     }
 
-    public function actions()
+    public function hooks()
     {
         add_action('admin_init', [$this, 'pageSettings']);
     }
-    
+
     public function pageSettings()
     {
         add_settings_section(
@@ -76,16 +72,16 @@ class ManageData extends Admin
         echo '</form>';
 
         // Check and make dir if it doesn't exist
-        wp_mkdir_p($this->export_file_dir);
+        wp_mkdir_p($this->exportDirectory());
 
         if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             if (isset($_POST['submit-wp-weighting-json'])) {
                 // Check file size
                 if ($_FILES['file-weighting-json']['size'] > 5485760) {
-                    echo '<strong>File imported is too big (over 5MB limit).</strong>';
+                    echo '<strong>File imported is too big (5MB limit).</strong>';
                     return;
                 }
-                
+
                 $import_notification = move_uploaded_file($_FILES['file-weighting-json']["tmp_name"], $this->weighting_file);
 
                 // Check tmp file has been moved to plugin location
@@ -110,7 +106,7 @@ class ManageData extends Admin
                 if ($db_update_notification) {
                     echo '<strong>Database updated.<strong><br>';
                 } else {
-                    echo '<strong>Database not updated.<br>JSON data has not changed or 
+                    echo '<strong>Database not updated.<br>JSON data has not changed or
                     there was an issue updating the "elasticpress_weighting" WP option field.<strong><br>';
                 }
             }
@@ -135,5 +131,12 @@ class ManageData extends Admin
                 echo $json_data;
             }
         }
+    }
+
+    public function exportDirectory()
+    {
+        $ds = DIRECTORY_SEPARATOR;
+        $file_dir = wp_get_upload_dir()['basedir'];
+        return $file_dir . $ds . $this->text_domain . $ds;
     }
 }
