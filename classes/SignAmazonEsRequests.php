@@ -23,9 +23,9 @@ class SignAmazonEsRequests
 
     public function debugResponse($response, $context, $class, $parsed_args, $url)
     {
-        Debug::this('ES URL: ' . microtime(), $url);
+        /*Debug::this('ES URL: ' . microtime(), $url);
         Debug::this('ES Parsed Args', $parsed_args);
-        Debug::this('ES Response', $response, true);
+        Debug::this('ES Response', $response, true);*/
     }
 
     public function signAwsRequest(array $args, string $url) : array

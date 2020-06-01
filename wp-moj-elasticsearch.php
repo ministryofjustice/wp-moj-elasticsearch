@@ -3,7 +3,7 @@
  * Plugin name: WP MoJ ElasticSearch
  * Plugin URI:  https://github.com/ministryofjustice/wp-moj-elasticsearch
  * Description: MoJ WP plugin to extend the functionality of the ElasticPress plugin
- * Version:     1.3.1
+ * Version:     2.0.0
  * Authors:     Damien Wilson, Adam Brown
  * Text domain: wp-moj-elasticsearch
  * Author URI:  https://ministryofjustice.github.io/justice-on-the-web
@@ -12,7 +12,7 @@
  **/
 
 // Debug output related constant
-define('DEBUG_ECHO', false);
+define('DEBUG_ECHO', true);
 
 // Get site root to target installation of Composer's autoloader
 global $root_dir;
@@ -22,8 +22,11 @@ if (empty($root_dir)) {
         For your project add $root_dir = dirname(__DIR__); in your wp-config.php file.',
         E_USER_WARNING
     );
-    // guess the path
+    // try and guess the path
     $root_dir = '/bedrock';
+    if (!file_exists($root_dir)) {
+        return;
+    }
 }
 
 // Load all our classes from PSR4 autoloader
@@ -40,5 +43,5 @@ new Admin;
 new SignAmazonEsRequests;
 new ElasticPressHooks;
 new CliBulkIndex;
-new Connection;
-new ManageData;
+new ManageData();
+new Connection();
