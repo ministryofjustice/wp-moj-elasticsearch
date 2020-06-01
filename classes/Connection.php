@@ -126,8 +126,8 @@ class Connection extends Admin
 
     public function kinesisIndexIntro()
     {
-        $heading = __('Entering API access information', $this->text_domain);
-        $description = __('Create an API ID and Key in Kibana under the Security section "API Keys" and enter the details here', $this->text_domain);
+        $heading = __('Launching a bulk index', $this->text_domain);
+        $description = __('Please use with caution on a production server', $this->text_domain);
         echo '<div class="intro"><strong>' . $heading . '</strong><br>' . $description . '</div>';
     }
 

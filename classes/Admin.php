@@ -134,6 +134,7 @@ class Admin
 
         if (isset($options['index_button'])) {
             // start indexing kinesis here
+            self::settingNotice('We made it here but you cannot index via Kinesis yet!', 'bulk-error');
         }
 
         return $options;
@@ -215,7 +216,7 @@ class Admin
 
         // Check if DB was updated or not, convey message.
         if (!update_option('elasticpress_weighting', $ep_weighting)) {
-            self::settingNotice('File uploaded but data is unchanged. Maybe due to duplicate data.', 'db-error', 'info');
+            self::settingNotice('File uploaded correctly however weighting is unchanged. This maybe due to duplicate data.', 'db-error', 'info');
             unlink($weighting_file);
             return;
         }
