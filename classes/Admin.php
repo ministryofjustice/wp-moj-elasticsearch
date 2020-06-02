@@ -55,8 +55,6 @@ class Admin
     {
         add_thickbox();
 
-        echo '<form action="options.php" method="post" class="moj-es" enctype="multipart/form-data">';
-
         // Title section
         $title = __('MoJ ES', $this->text_domain);
         $title_admin = __('Extending the functionality of the ElasticPress plugin', $this->text_domain);
@@ -65,6 +63,11 @@ class Admin
         <h1><?= $title ?> <small class="sub-title">. <?= $title_admin ?></small></h1>
 
         <?php
+
+        settings_errors();
+
+        echo '<form action="options.php" method="post" class="moj-es" enctype="multipart/form-data">';
+
         // output tab buttons
         $this->tabs();
 
@@ -162,7 +165,7 @@ class Admin
      */
     public function options()
     {
-        return get_option($this->optionName());
+        return get_option($this->optionName(), []);
     }
 
     /**

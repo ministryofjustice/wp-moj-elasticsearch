@@ -23,6 +23,8 @@ trait Auth
         self::_canRunEnvironment();
         // is ElasticPress present and activated?
         self::_hasElasticPress();
+        // user is authorised
+        self::canView();
     }
 
     /**
@@ -54,6 +56,14 @@ trait Auth
         // check if ElasticPress available
         if (!defined('EP_VERSION')) {
             self::error('unavailable');
+        }
+    }
+
+    public static function canView()
+    {
+        /** Check permissions. */
+        if (!is_admin() || !current_user_can('manage_options')) {
+            self::error('forbidden');
         }
     }
 
