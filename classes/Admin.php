@@ -71,7 +71,7 @@ class Admin
         settings_fields($this->optionGroup());
         $this->sections();
 
-        // update all text, check and run uploads, if required.
+        // drop button; update all text, check and process uploads, if required.
         submit_button('Update Settings');
 
         echo '</form>';
@@ -132,24 +132,24 @@ class Admin
             self::weightingUploadHandler();
         }
 
+        // catch Kinesis index action
         if (isset($options['index_button'])) {
             // start indexing kinesis here
             self::settingNotice('We made it here but you cannot index via Kinesis yet!', 'bulk-error');
         }
 
-        // catch keys unlock request and reset lock
-        if (isset($options['access_unlock']) && $options['access_unlock'] === 'update keys') {
+        // catch keys unlock requests and reset lock
+        if (isset($options['access_keys_unlock']) && $options['access_keys_unlock'] === 'update keys') {
             self::settingNotice('Access keys are now unlocked.', 'access-error', 'warning');
-            $options['access_unlock'] = null;
-            $options['access_lock'] = null;
-        } else if (!isset($options['access_lock'])) {
-            if (isset($options['access_unlock']) && $options['access_unlock'] !== 'update keys') {
+            $options['access_keys_lock'] = null;
+        } else {
+            if (isset($options['access_keys_unlock']) && $options['access_keys_unlock'] !== 'update keys') {
                 self::settingNotice('Please enter a valid phrase to edit access keys', 'access-error', 'info');
             }
-            // force lock
-            $options['access_unlock'] = null;
-            $options['access_lock'] = 'yes';
+            // force lock any other time
+            $options['access_keys_lock'] = 'yes';
         }
+        $options['access_keys_unlock'] = null; // reset always
 
         return $options;
     }
