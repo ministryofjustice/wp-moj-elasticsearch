@@ -1,6 +1,4 @@
 jQuery(function ($) {
-
-    const settingsName = 'moj_es_settings';
   /**
    * This function is a setter and getter. On set it updates the browser history and returns the pathname + search
    * part of the URL. If no key is provided the funstion returns false. If a key with no value has been given, and
@@ -82,10 +80,10 @@ jQuery(function ($) {
 
     function startBulkIndex()
     {
-        $('a.thickbox').hide();
-        $('button.index_button').show().attr('disabled', null).click();
+        $('.moj-es a.thickbox').hide();
+        $('.moj-es button.index_button').show().attr('disabled', null).click();
     }
 
     // listen for click of index_pre_link
-    $('a.index_pre_link').on('click', startBulkIndex);
+    $('.moj-es a.index_pre_link').on('click', startBulkIndex);
 })
