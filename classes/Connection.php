@@ -148,11 +148,11 @@ class Connection extends Admin
                 ?>
             </select>
             <p><?= $description ?></p>
-            <?php
+        <?php
         else :
             ?><p>Currently there are no streams available. This would suggest a connection to Kinesis is lost.<br>
             Please make sure your connection <strong>key</strong> and <strong>secret</strong> are correct.</p>
-            <?php
+        <?php
         endif;
     }
 
@@ -166,7 +166,8 @@ class Connection extends Admin
         $options = $this->options();
         $description = __('A key to access Kinesis', $this->text_domain);
         ?>
-        <input type="password" value="<?= $options['access_key'] ?? '' ?>" name='<?= $this->optionName() ?>[access_key]' class="input">
+        <input type="password" value="<?= $options['access_key'] ?? '' ?>" name='<?= $this->optionName() ?>[access_key]'
+               class="input">
         <p><?= $description ?></p>
         <?php
     }
@@ -181,7 +182,8 @@ class Connection extends Admin
         $options = $this->options();
         $description = __('A secret to access Kinesis', $this->text_domain);
         ?>
-        <input type="password" value="<?= $options['access_secret'] ?? '' ?>" name='<?= $this->optionName() ?>[access_secret]' class="input">
+        <input type="password" value="<?= $options['access_secret'] ?? '' ?>"
+               name='<?= $this->optionName() ?>[access_secret]' class="input">
         <p><?= $description ?></p>
         <?php
     }
@@ -196,7 +198,8 @@ class Connection extends Admin
         $options = $this->options();
         $description = __('Enter the phrase "<strong class="red">update keys</strong>" to access the Kinesis key and secret.', $this->text_domain);
         ?>
-        <input type="text" value="<?= $options['access_keys_unlock'] ?? '' ?>" name='<?= $this->optionName() ?>[access_keys_unlock]'>
+        <input type="text" value="<?= $options['access_keys_unlock'] ?? '' ?>"
+               name='<?= $this->optionName() ?>[access_keys_unlock]'>
         <p><?= $description ?></p>
         <?php
     }
@@ -206,18 +209,32 @@ class Connection extends Admin
         $options = $this->options();
         $description = __('How many posts should we send at once? One is the default.', $this->text_domain);
         ?>
-        <input type="number" value="<?= $options['index_per_post'] ?? '' ?>" name='<?= $this->optionName() ?>[index_per_post]'>
+        <input type="number" value="<?= $options['index_per_post'] ?? '' ?>"
+               name='<?= $this->optionName() ?>[index_per_post]'>
         <p><?= $description ?></p>
         <?php
     }
 
     public function indexButton()
     {
-        $description = __('You won\'t be asked to confirm. Please use this button with due consideration.', $this->text_domain);
+        $description = __('You will be asked to confirm your decision. Please use this button with due consideration.', $this->text_domain);
         ?>
-        <button name='<?= $this->optionName() ?>[index_button]' class="button-primary">
+        <div id="my-content-id" style="display:none;">
+            <p>
+                Please make sure you are aware of the implications of starting a fresh index. Please confirm.
+            </p>
+                <a class="button-primary index_pre_link"
+                        title="Are you sure?">
+                    I'm ready to refresh the index... GO!
+                </a>
+        </div>
+        <button name='<?= $this->optionName() ?>[index_button]' class="button-primary index_button" disabled="disabled">
             Destroy index and refresh
         </button>
+        <a href="#TB_inline?&width=400&height=150&inlineId=my-content-id" class="button-primary thickbox"
+           title="Are you sure?">
+            Destroy index and refresh
+        </a>
         <p><?= $description ?></p>
         <?php
     }

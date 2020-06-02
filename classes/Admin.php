@@ -53,6 +53,8 @@ class Admin
      */
     public function init()
     {
+        add_thickbox();
+
         echo '<form action="options.php" method="post" class="moj-es" enctype="multipart/form-data">';
 
         // Title section
@@ -63,7 +65,6 @@ class Admin
         <h1><?= $title ?> <small class="sub-title">. <?= $title_admin ?></small></h1>
 
         <?php
-
         // output tab buttons
         $this->tabs();
 
@@ -143,7 +144,7 @@ class Admin
             self::settingNotice('Access keys are now unlocked.', 'access-error', 'warning');
             $options['access_keys_lock'] = null;
         } else {
-            if (isset($options['access_keys_unlock']) && $options['access_keys_unlock'] !== 'update keys') {
+            if (isset($options['access_keys_unlock']) && !empty($options['access_keys_unlock']) && $options['access_keys_unlock'] !== 'update keys') {
                 self::settingNotice('Please enter a valid phrase to edit access keys', 'access-error', 'info');
             }
             // force lock any other time

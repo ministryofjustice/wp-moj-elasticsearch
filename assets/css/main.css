@@ -28,6 +28,11 @@ a.nav-tab:focus {
     padding: 12px 20px;
     display: inline-block;
     border: 1px solid #fff;
+    border-radius: 3px;
     max-width: 50rem;
     min-width: 30rem;
+}
+
+.moj-es button.index_button {
+    display:none
 }
