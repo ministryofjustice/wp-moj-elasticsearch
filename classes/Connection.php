@@ -99,8 +99,9 @@ class Connection extends Admin
                 'callback' => [$this, 'kinesisIntro'],
                 'fields' => [
                     'stream_name' => ['title' => 'Stream Name', 'callback' => [$this, 'streamName']],
-                    'access_key' => ['title' => 'Aws Key', 'callback' => [$this, 'accessKey']],
-                    'access_secret' => ['title' => 'AWS Secret', 'callback' => [$this, 'accessSecret']]
+                    'access_key' => ['title' => 'Access Key', 'callback' => [$this, 'accessKey']],
+                    'access_secret' => ['title' => 'Access Secret', 'callback' => [$this, 'accessSecret']],
+                    'access_unlock' => ['title' => 'Key Protection', 'callback' => [$this, 'accessUnlock']]
                 ]
             ],
             [
@@ -159,8 +160,14 @@ class Connection extends Admin
     {
         $options = $this->options();
         $description = __('A key to access Kinesis', $this->text_domain);
+
+        if ($this->keysLocked()) {
+            echo '****************';
+            return;
+        }
+
         ?>
-        <input type="password" value="<?= $options['access_key'] ?? '' ?>" name='<?= $this->optionName() ?>[access_key]'>
+        <input type="password" value="<?= $options['access_key'] ?? '' ?>" name='<?= $this->optionName() ?>[access_key]' class="input">
         <p><?= $description ?></p>
         <?php
     }
@@ -169,8 +176,45 @@ class Connection extends Admin
     {
         $options = $this->options();
         $description = __('A secret to access Kinesis', $this->text_domain);
+
+        if ($this->keysLocked()) {
+            echo '****************';
+            return;
+        }
+
         ?>
-        <input type="password" value="<?= $options['access_secret'] ?? '' ?>" name='<?= $this->optionName() ?>[access_secret]'>
+        <input type="password" value="<?= $options['access_secret'] ?? '' ?>" name='<?= $this->optionName() ?>[access_secret]' class="input">
+        <p><?= $description ?></p>
+        <?php
+    }
+
+    public function accessLock()
+    {
+        $options = $this->options();
+        $description = __('Checking this will remove the key fields above to protect the index.', $this->text_domain);
+
+        if ($this->keysLocked()) {
+            echo __('<strong>Currently locked</strong>. You may enter a phrase below to edit keys.', $this->text_domain);
+            return;
+        }
+
+        ?>
+        <input type='checkbox' name='<?= $this->optionName() ?>[access_lock]'
+               value='yes' <?= checked('yes', $options['access_lock'] ?? '') ?>>
+        <p><?= $description ?></p>
+        <?php
+    }
+
+    public function accessUnlock()
+    {
+        $options = $this->options();
+        $description = __('Enter the phrase "<strong class="red">update keys</strong>" to access the Kinesis key and secret.', $this->text_domain);
+        if (!$this->keysLocked()) {
+            echo "<strong>Keys will lock on update to protect us from accidental disconnect.</strong>";
+            return;
+        }
+        ?>
+        <input type="text" value="<?= $options['access_unlock'] ?? '' ?>" name='<?= $this->optionName() ?>[access_unlock]'>
         <p><?= $description ?></p>
         <?php
     }
@@ -187,7 +231,6 @@ class Connection extends Admin
 
     public function indexButton()
     {
-        $options = $this->options();
         $description = __('You won\'t be asked to confirm. Please use this button with due consideration.', $this->text_domain);
         ?>
         <button name='<?= $this->optionName() ?>[index_button]' class="button-primary">
@@ -200,5 +243,15 @@ class Connection extends Admin
     private function canRun()
     {
         return $this->client;
+    }
+
+    public function keysLocked()
+    {
+        $options = $this->options();
+        if (isset($options['access_lock']) && $options['access_lock'] === 'yes') {
+            return true;
+        }
+
+        return false;
     }
 }

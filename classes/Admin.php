@@ -137,6 +137,20 @@ class Admin
             self::settingNotice('We made it here but you cannot index via Kinesis yet!', 'bulk-error');
         }
 
+        // catch keys unlock request and reset lock
+        if (isset($options['access_unlock']) && $options['access_unlock'] === 'update keys') {
+            self::settingNotice('Access keys are now unlocked.', 'access-error', 'warning');
+            $options['access_unlock'] = null;
+            $options['access_lock'] = null;
+        } else if (!isset($options['access_lock'])) {
+            if (isset($options['access_unlock']) && $options['access_unlock'] !== 'update keys') {
+                self::settingNotice('Please enter a valid phrase to edit access keys', 'access-error', 'info');
+            }
+            // force lock
+            $options['access_unlock'] = null;
+            $options['access_lock'] = 'yes';
+        }
+
         return $options;
     }
 
