@@ -158,33 +158,15 @@ class Connection extends Admin
 
     public function accessKey()
     {
-        if ($this->keysLocked()) {
-            echo '****************';
-            return;
-        }
-
-        $options = $this->options();
-        $description = __('A key to access Kinesis', $this->text_domain);
-        ?>
-        <input type="password" value="<?= $options['access_key'] ?? '' ?>" name='<?= $this->optionName() ?>[access_key]'
-               class="input">
-        <p><?= $description ?></p>
+        $this->keyInput('access_key') ?>
+        <p><?= __('A key to access Kinesis', $this->text_domain) ?></p>
         <?php
     }
 
     public function accessSecret()
     {
-        if ($this->keysLocked()) {
-            echo '****************';
-            return;
-        }
-
-        $options = $this->options();
-        $description = __('A secret to access Kinesis', $this->text_domain);
-        ?>
-        <input type="password" value="<?= $options['access_secret'] ?? '' ?>"
-               name='<?= $this->optionName() ?>[access_secret]' class="input">
-        <p><?= $description ?></p>
+        $this->keyInput('access_secret') ?>
+        <p><?= __('A secret to access Kinesis', $this->text_domain) ?></p>
         <?php
     }
 
@@ -204,6 +186,20 @@ class Connection extends Admin
         <?php
     }
 
+    public function keyInput($key)
+    {
+        $value = $this->options()[$key];
+        $readonly = '';
+        $type = 'text';
+
+        if ($this->keysLocked()) {
+            $readonly = ' readonly="readonly"';
+            $type = 'password';
+        }
+
+        echo '<input type="' . $type .'" value="' . $value .'" name="' . $this->optionName() .'['.$key.']" class="input"' . $readonly .' />';
+    }
+
     public function postsPerIndex()
     {
         $options = $this->options();
@@ -221,18 +217,19 @@ class Connection extends Admin
         ?>
         <div id="my-content-id" style="display:none;">
             <p>
-                Please make sure you are aware of the implications of starting a fresh index. Please confirm.
+                Please make sure you are aware of the implications when commanding a new index. If you are unsure, exit
+                out of this box by clicking away from this modal.<br><strong>Please confirm:</strong>
             </p>
-                <a class="button-primary index_pre_link"
-                        title="Are you sure?">
-                    I'm ready to refresh the index... GO!
-                </a>
+            <a class="button-primary index_pre_link"
+               title="Are you sure?">
+                I'm ready to refresh the index... GO!
+            </a>
         </div>
         <button name='<?= $this->optionName() ?>[index_button]' class="button-primary index_button" disabled="disabled">
             Destroy index and refresh
         </button>
         <a href="#TB_inline?&width=400&height=150&inlineId=my-content-id" class="button-primary thickbox"
-           title="Are you sure?">
+           title="Refresh Elasticsearch Index">
             Destroy index and refresh
         </a>
         <p><?= $description ?></p>
