@@ -44,7 +44,7 @@ plugins:
   phpcodesniffer:
     enabled: true
     config:
-      standard: "PSR12"
+      standard: "PSR2"
   phpmd:
     enabled: true
 exclude_patterns:
