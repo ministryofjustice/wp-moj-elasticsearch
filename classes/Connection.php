@@ -38,7 +38,7 @@ class Connection extends Admin
         parent::__construct();
         $this->hooks();
         $this->connect();
-        $this->_getStreamNames();
+        $this->getStreamNames();
     }
 
     public function hooks()
@@ -65,9 +65,9 @@ class Connection extends Admin
         }*/
     }
 
-    private function _getStreamNames()
+    private function getStreamNames()
     {
-        if ($this->_canRun()) {
+        if ($this->canRun()) {
             try {
                 $result = $this->client->listDeliveryStreams([
                     'DeliveryStreamType' => 'DirectPut',
@@ -141,9 +141,11 @@ class Connection extends Admin
         $output = '<p>Currently there are no streams available. This would suggest a connection to Kinesis is lost.<br>
             Please make sure your connection <strong>key</strong> and <strong>secret</strong> are correct.</p>';
         if (is_array($options['kinesis_streams'])) {
-            $output = '<select name="' . $this->optionName() . '[kinesis_streams]"><option value="" disabled="disabled">Choose a stream</option>';
+            $output = '<select name="' . $this->optionName() . '[kinesis_streams]">
+                        <option value="" disabled="disabled">Choose a stream</option>';
             foreach ($options['kinesis_streams'] as $stream) {
-                $output .= "<option value='" . $stream . "' " . selected($options['kinesis_streams'], $stream) . ">" . $stream . "</option>";
+                $output .= "<option value='" . $stream . "' " . selected($options['kinesis_streams'], $stream) . ">" .
+                    $stream . "</option>";
             }
             $output = '</select><p>' . $description . '</p>';
         }
@@ -166,13 +168,16 @@ class Connection extends Admin
 
     public function accessLock()
     {
-        if (!$this->_keysLocked()) {
+        if (!$this->keysLocked()) {
             echo "<strong>Keys will lock on update to protect from accidental disconnect.</strong>";
             return;
         }
 
         $options = $this->options();
-        $description = __('Enter the phrase "<strong class="red">update keys</strong>" to access the Kinesis key and secret.', $this->text_domain);
+        $description = __(
+            'Enter the phrase "<strong class="red">update keys</strong>" to access the Kinesis key and secret.',
+            $this->text_domain
+        );
         ?>
         <input type="text" value="<?= $options['access_keys_unlock'] ?? '' ?>"
                name='<?= $this->optionName() ?>[access_keys_unlock]'>
@@ -186,12 +191,16 @@ class Connection extends Admin
         $readonly = '';
         $type = 'text';
 
-        if ($this->_keysLocked()) {
+        if ($this->keysLocked()) {
             $readonly = ' readonly="readonly"';
             $type = 'password';
         }
 
-        echo '<input type="' . $type . '" value="' . $value . '" name="' . $this->optionName() . '[' . $key . ']" class="input"' . $readonly . ' />';
+        echo '<input
+                type="' . $type . '"
+                value="' . $value . '"
+                name="' . $this->optionName() . '[' . $key . ']"
+                class="input"' . $readonly . ' />';
     }
 
     public function postsPerIndex()
@@ -207,7 +216,10 @@ class Connection extends Admin
 
     public function indexButton()
     {
-        $description = __('You will be asked to confirm your decision. Please use this button with due consideration.', $this->text_domain);
+        $description = __(
+            'You will be asked to confirm your decision. Please use this button with due consideration.',
+            $this->text_domain
+        );
         ?>
         <div id="my-content-id" style="display:none;">
             <p>
@@ -230,12 +242,12 @@ class Connection extends Admin
         <?php
     }
 
-    private function _canRun()
+    private function canRun()
     {
         return $this->client;
     }
 
-    private function _keysLocked()
+    private function keysLocked()
     {
         $options = $this->options();
         if (isset($options['access_keys_lock']) && $options['access_keys_lock'] === 'yes') {

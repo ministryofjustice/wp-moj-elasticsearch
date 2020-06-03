@@ -34,7 +34,11 @@ class Admin
     public function enqueue()
     {
         wp_enqueue_style('moj-es', plugins_url('../', __FILE__) . 'assets/css/main.css', []);
-        wp_enqueue_script('moj-es-js', plugins_url('../', __FILE__) . 'assets/js/main.js', ['jquery']);
+        wp_enqueue_script(
+            'moj-es-js',
+            plugins_url('../', __FILE__) . 'assets/js/main.js',
+            ['jquery']
+        );
     }
 
     public function settingsPage()
@@ -69,11 +73,11 @@ class Admin
         echo '<form action="options.php" method="post" class="moj-es" enctype="multipart/form-data">';
 
         // output tab buttons
-        $this->_tabs();
+        $this->tabs();
 
         // drop sections
         settings_fields($this->optionGroup());
-        $this->_sections();
+        $this->sections();
 
         // drop button; update all text, check and process uploads, if required.
         submit_button('Update Settings');
@@ -85,7 +89,7 @@ class Admin
      * Generates page tabs for each registered module.
      * Uses the $tabs array ~ defined by modules using sections and fields.
      */
-    private function _tabs()
+    private function tabs()
     {
         echo '<div class="nav-tab-wrapper">';
         foreach (self::$tabs as $tab => $label) {
@@ -98,7 +102,7 @@ class Admin
      * Creates the Dashboard front-end section view in our settings page.
      * Uses the $sections configuration array
      */
-    private function _sections()
+    private function sections()
     {
         foreach (self::$sections as $section_group_id => $sections) {
             echo '<div id="moj-es-' . $section_group_id . '" class="moj-es-settings-group">';
@@ -150,8 +154,13 @@ class Admin
             $options['access_keys_lock'] = null;
         }
 
-        if (isset($options['access_keys_unlock']) && !empty($options['access_keys_unlock']) && $options['access_keys_unlock'] !== 'update keys') {
-            self::settingNotice('Please enter a valid phrase to edit access keys', 'access-error', 'info');
+        if (isset($options['access_keys_unlock']) && !empty($options['access_keys_unlock']) &&
+            $options['access_keys_unlock'] !== 'update keys') {
+            self::settingNotice(
+                'Please enter a valid phrase to edit access keys',
+                'access-error',
+                'info'
+            );
         }
         // holds the pass phrase, reset always
         $options['access_keys_unlock'] = null;
@@ -179,7 +188,8 @@ class Admin
     }
 
     /**
-     * The settings name for our plugins option data. Calling get_option() with this string will produce the plugins data.
+     * The settings name for our plugins option data.
+     * Calling get_option() with this string will produce the plugins data.
      * @return string
      */
     public function optionName()
@@ -220,7 +230,10 @@ class Admin
 
         // Check the file was moved on the server
         if (!move_uploaded_file($_FILES['weighting-import']["tmp_name"], $weighting_file)) {
-            self::settingNotice('File not uploaded. There was a problem saving settings to file.', 'move-error');
+            self::settingNotice(
+                'File not uploaded. There was a problem saving settings to file.',
+                'move-error'
+            );
             return;
         }
 
@@ -228,19 +241,30 @@ class Admin
 
         // Check the JSON is decoded into an array.
         if (!is_array($ep_weighting)) {
-            self::settingNotice('File data corrupted (not provided as an array). DB not updated.', 'json-error');
+            self::settingNotice(
+                'File data corrupted (not provided as an array). DB not updated.',
+                'json-error'
+            );
             unlink($weighting_file);
             return;
         }
 
         // Check if DB was updated or not, convey message.
         if (!update_option('elasticpress_weighting', $ep_weighting)) {
-            self::settingNotice('File uploaded correctly however weighting is unchanged. This maybe due to duplicate data.', 'db-error', 'info');
+            self::settingNotice(
+                'File uploaded correctly however weighting is unchanged. This maybe due to duplicate data.',
+                'db-error',
+                'info'
+            );
             unlink($weighting_file);
             return;
         }
 
-        self::settingNotice('Settings saved and weighting data imported successfully.', 'import-success', 'success');
+        self::settingNotice(
+            'Settings saved and weighting data imported successfully.',
+            'import-success',
+            'success'
+        );
         unlink($weighting_file);
     }
 

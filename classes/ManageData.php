@@ -71,7 +71,9 @@ class ManageData extends Admin
      */
     public function importEPWeights()
     {
-        echo '<strong>WARNING:</strong> Updating settings with a file selected will overwrite <a href="/wp/wp-admin/admin.php?page=elasticpress-weighting">ElasticPress weightings</a>.<br>Please take a back-up of data from below before doing this.<br><br>';
+        echo '<strong>WARNING:</strong> Updating settings with a file selected will overwrite';
+        echo '<a href="/wp/wp-admin/admin.php?page=elasticpress-weighting">ElasticPress weightings</a>.';
+        echo '<br>Please take a back-up of data from below before doing this.<br><br>';
         echo '<input type="file" name="weighting-import" class="button-primary" /><br><br>';
 
         // Check and make dir if it doesn't exist
