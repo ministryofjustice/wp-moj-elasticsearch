@@ -59,11 +59,16 @@ trait Auth
         }
     }
 
+    /**
+     * Early-on user permission check
+     */
     public static function canView()
     {
-        /** Check permissions. */
         if (!is_admin() || !current_user_can('manage_options')) {
-            self::error('forbidden');
+            $_get = $_GET['page'];
+            if ($_get === 'moj_es') {
+                self::error('forbidden');
+            }
         }
     }
 

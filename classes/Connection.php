@@ -16,6 +16,7 @@ use Aws\Credentials\Credentials;
  * Manages connections and data flow with AWS Kinesis
  * Class Connection
  * @package MOJElasticSearch
+ * @SuppressWarnings(PHPMD)
  */
 class Connection extends Admin
 {
@@ -37,7 +38,7 @@ class Connection extends Admin
         parent::__construct();
         $this->hooks();
         $this->connect();
-        $this->getStreamNames();
+        $this->_getStreamNames();
     }
 
     public function hooks()
@@ -64,14 +65,14 @@ class Connection extends Admin
         }*/
     }
 
-    public function getStreamNames()
+    private function _getStreamNames()
     {
-        if ($this->canRun()) {
+        if ($this->_canRun()) {
             try {
                 $result = $this->client->listDeliveryStreams([
                     'DeliveryStreamType' => 'DirectPut',
                 ]);
-                Debug::this('getStreamNames', $result, true);
+                $this->this('getStreamNames', $result, true);
                 $this->updateOption('kinesis_streams', $result);
             } catch (AwsException $e) {
                 // output error message if fails
@@ -137,23 +138,16 @@ class Connection extends Admin
         $options = $this->options();
         $description = __('A stream name.', $this->text_domain);
 
-        if (is_array($options['kinesis_streams'])) :
-            ?>
-            <select name='<?= $this->optionName() ?>[kinesis_streams]'>
-                <option value='' disabled="disabled">Choose a stream</option>
-                <?php
-                foreach ($options['kinesis_streams'] as $stream) {
-                    echo "<option value='" . $stream . "' " . selected($options['kinesis_streams'], $stream) . ">" . $stream . "</option>";
-                }
-                ?>
-            </select>
-            <p><?= $description ?></p>
-        <?php
-        else :
-            ?><p>Currently there are no streams available. This would suggest a connection to Kinesis is lost.<br>
-            Please make sure your connection <strong>key</strong> and <strong>secret</strong> are correct.</p>
-        <?php
-        endif;
+        $output = '<p>Currently there are no streams available. This would suggest a connection to Kinesis is lost.<br>
+            Please make sure your connection <strong>key</strong> and <strong>secret</strong> are correct.</p>';
+        if (is_array($options['kinesis_streams'])) {
+            $output = '<select name="' . $this->optionName() . '[kinesis_streams]"><option value="" disabled="disabled">Choose a stream</option>';
+            foreach ($options['kinesis_streams'] as $stream) {
+                $output .= "<option value='" . $stream . "' " . selected($options['kinesis_streams'], $stream) . ">" . $stream . "</option>";
+            }
+            $output = '</select><p>' . $description . '</p>';
+        }
+        echo $output;
     }
 
     public function accessKey()
@@ -172,7 +166,7 @@ class Connection extends Admin
 
     public function accessLock()
     {
-        if (!$this->keysLocked()) {
+        if (!$this->_keysLocked()) {
             echo "<strong>Keys will lock on update to protect from accidental disconnect.</strong>";
             return;
         }
@@ -192,12 +186,12 @@ class Connection extends Admin
         $readonly = '';
         $type = 'text';
 
-        if ($this->keysLocked()) {
+        if ($this->_keysLocked()) {
             $readonly = ' readonly="readonly"';
             $type = 'password';
         }
 
-        echo '<input type="' . $type .'" value="' . $value .'" name="' . $this->optionName() .'['.$key.']" class="input"' . $readonly .' />';
+        echo '<input type="' . $type . '" value="' . $value . '" name="' . $this->optionName() . '[' . $key . ']" class="input"' . $readonly . ' />';
     }
 
     public function postsPerIndex()
@@ -236,12 +230,12 @@ class Connection extends Admin
         <?php
     }
 
-    private function canRun()
+    private function _canRun()
     {
         return $this->client;
     }
 
-    public function keysLocked()
+    private function _keysLocked()
     {
         $options = $this->options();
         if (isset($options['access_keys_lock']) && $options['access_keys_lock'] === 'yes') {

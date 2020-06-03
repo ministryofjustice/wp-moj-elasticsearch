@@ -16,7 +16,11 @@
     },
     "scripts": {
         "test": [
+            "vendor/bin/phpcs",
             "vendor/bin/phpmd classes/ text cleancode,codesize,design,naming,unusedcode"
+        ],
+        "test-fix": [
+            "vendor/bin/phpcbf"
         ]
     },
     "autoload": {

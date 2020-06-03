@@ -26,6 +26,9 @@ class ManageData extends Admin
         add_action('admin_init', [$this, 'pageSettings'], 1);
     }
 
+    /**
+     * @SuppressWarnings(PHPMD)
+     */
     public function pageSettings()
     {
         $group = 'manage_data';
@@ -68,13 +71,11 @@ class ManageData extends Admin
      */
     public function importEPWeights()
     {
-        $options = $this->options();
-
         echo '<strong>WARNING:</strong> Updating settings with a file selected will overwrite <a href="/wp/wp-admin/admin.php?page=elasticpress-weighting">ElasticPress weightings</a>.<br>Please take a back-up of data from below before doing this.<br><br>';
         echo '<input type="file" name="weighting-import" class="button-primary" /><br><br>';
 
         // Check and make dir if it doesn't exist
-        wp_mkdir_p(Admin::importLocation());
+        wp_mkdir_p(parent::importLocation());
     }
 
     /**

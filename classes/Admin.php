@@ -69,11 +69,11 @@ class Admin
         echo '<form action="options.php" method="post" class="moj-es" enctype="multipart/form-data">';
 
         // output tab buttons
-        $this->tabs();
+        $this->_tabs();
 
         // drop sections
         settings_fields($this->optionGroup());
-        $this->sections();
+        $this->_sections();
 
         // drop button; update all text, check and process uploads, if required.
         submit_button('Update Settings');
@@ -85,7 +85,7 @@ class Admin
      * Generates page tabs for each registered module.
      * Uses the $tabs array ~ defined by modules using sections and fields.
      */
-    public function tabs()
+    private function _tabs()
     {
         echo '<div class="nav-tab-wrapper">';
         foreach (self::$tabs as $tab => $label) {
@@ -98,7 +98,7 @@ class Admin
      * Creates the Dashboard front-end section view in our settings page.
      * Uses the $sections configuration array
      */
-    public function sections()
+    private function _sections()
     {
         foreach (self::$sections as $section_group_id => $sections) {
             echo '<div id="moj-es-' . $section_group_id . '" class="moj-es-settings-group">';
@@ -143,17 +143,18 @@ class Admin
         }
 
         // catch keys unlock requests and reset lock
+        // force lock any other time
+        $options['access_keys_lock'] = 'yes';
         if (isset($options['access_keys_unlock']) && $options['access_keys_unlock'] === 'update keys') {
             self::settingNotice('Access keys are now unlocked.', 'access-error', 'warning');
             $options['access_keys_lock'] = null;
-        } else {
-            if (isset($options['access_keys_unlock']) && !empty($options['access_keys_unlock']) && $options['access_keys_unlock'] !== 'update keys') {
-                self::settingNotice('Please enter a valid phrase to edit access keys', 'access-error', 'info');
-            }
-            // force lock any other time
-            $options['access_keys_lock'] = 'yes';
         }
-        $options['access_keys_unlock'] = null; // reset always
+
+        if (isset($options['access_keys_unlock']) && !empty($options['access_keys_unlock']) && $options['access_keys_unlock'] !== 'update keys') {
+            self::settingNotice('Please enter a valid phrase to edit access keys', 'access-error', 'info');
+        }
+        // holds the pass phrase, reset always
+        $options['access_keys_unlock'] = null;
 
         return $options;
     }
@@ -189,14 +190,14 @@ class Admin
     /**
      * Creates a new notice to be presented to the user. Used to pass information about the current process.
      * @param $notice
-     * @param $id
+     * @param $code
      * @param string $type
      */
-    public static function settingNotice($notice, $id, $type = 'error')
+    public static function settingNotice($notice, $code, $type = 'error')
     {
         add_settings_error(
             'moj_es_settings',
-            'moj-es' . $id,
+            'moj-es' . $code,
             __($notice, 'wp-moj-elasticsearch'),
             $type
         );

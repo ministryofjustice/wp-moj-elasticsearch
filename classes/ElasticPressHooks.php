@@ -69,6 +69,6 @@ class ElasticPressHooks
 
     public function preventDashboardIndex()
     {
-
+        // TODO: prevent dashboard sync from ElasticPress UI
     }
 }

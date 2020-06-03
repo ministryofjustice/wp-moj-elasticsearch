@@ -21,13 +21,12 @@ class SignAmazonEsRequests
         add_action('http_api_debug', [$this, 'debugResponse'], 99, 5);
     }
 
-    public function debugResponse($response, $context, $class, $parsed_args, $url)
-    {
-        /*Debug::this('ES URL: ' . microtime(), $url);
-        Debug::this('ES Parsed Args', $parsed_args);
-        Debug::this('ES Response', $response, true);*/
-    }
-
+    /**
+     * Intercepts all requests to AWS ES and signs the URL for access
+     * @param array $args
+     * @param string $url
+     * @return array
+     */
     public function signAwsRequest(array $args, string $url) : array
     {
         $ori_url = parse_url($url, PHP_URL_HOST);
