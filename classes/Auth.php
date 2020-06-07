@@ -6,68 +6,72 @@ namespace MOJElasticSearch;
  * Class Authentication
  * @package MOJElasticSearch
  */
-trait Auth
+class Auth
 {
-    public static function auth()
+    public function __construct()
     {
         // is the WP environment loaded?
-        self::_hasAbsPath();
-
-        // middleware check
-        add_action('init', ['\MOJElasticSearch\Auth', 'check']);
+        $this->hasAbsPath();
+        $this->hooks();
     }
 
-    public static function check()
+    public function hooks()
+    {
+        // middleware check
+        add_action('init', [$this, 'check']);
+    }
+
+    public function check()
     {
         // is WP environment running?
-        self::_canRunEnvironment();
+        $this->canRunEnvironment();
         // is ElasticPress present and activated?
-        self::_hasElasticPress();
+        $this->hasElasticPress();
         // user is authorised
-        self::canView();
+        $this->canView();
     }
 
     /**
      * Checks to see if we have the ABSPATH constant and exits the application if not
      * A default way to check if the WordPress environment is available
      */
-    private static function _hasAbsPath()
+    private function hasAbsPath()
     {
         if (!defined('ABSPATH')) {
-            self::error('forbidden');
+            $this->error('forbidden');
         }
     }
 
     /**
      * Makes sure WordPress can operate properly before launching the plugin
      */
-    private static function _canRunEnvironment()
+    private function canRunEnvironment()
     {
         if (!function_exists('add_action')) {
-            self::error('unavailable');
+            $this->error('unavailable');
         }
     }
 
     /**
      * Run a constant check on the installation status of ElasticPress
      */
-    private static function _hasElasticPress()
+    private function hasElasticPress()
     {
         // check if ElasticPress available
         if (!defined('EP_VERSION')) {
-            self::error('unavailable');
+            $this->error('unavailable');
         }
     }
 
     /**
      * Early-on user permission check
      */
-    public static function canView()
+    public function canView()
     {
         if (!is_admin() || !current_user_can('manage_options')) {
             $_get = $_GET['page'];
             if ($_get === 'moj_es') {
-                self::error('forbidden');
+                $this->error('forbidden');
             }
         }
     }
@@ -75,27 +79,27 @@ trait Auth
     /**
      * Error helper for private exit methods
      * @param String $type unauthorised | forbidden | unavailable
+     * @return mixed
+     * @SuppressWarnings(PHPMD.ExitExpression)
      */
-    public static function error(String $type)
+    public function error(String $type)
     {
-        call_user_func(['\MOJElasticSearch\Auth', $type]);
+        call_user_func([$this, $type]);
+        exit;
     }
 
-    public static function unauthorised()
+    public function unauthorised()
     {
         header("HTTP/1.1 401 Unauthorized");
-        exit;
     }
 
-    public static function forbidden()
+    public function forbidden()
     {
         header("HTTP/1.1 403 Forbidden");
-        exit;
     }
 
-    public static function unavailable()
+    public function unavailable()
     {
         header("HTTP/1.1 503 Service Temporarily Unavailable");
-        exit;
     }
 }

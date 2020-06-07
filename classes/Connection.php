@@ -10,7 +10,8 @@ namespace MOJElasticSearch;
 
 use Aws\Firehose\FirehoseClient;
 use Aws\Exception\AwsException;
-use Aws\Credentials\Credentials;
+use Aws\Credentials\CredentialProvider;
+use Aws\Sts\StsClient;
 
 /**
  * Manages connections and data flow with AWS Kinesis
@@ -37,42 +38,57 @@ class Connection extends Admin
     {
         parent::__construct();
         $this->hooks();
-        $this->connect();
         $this->getStreamNames();
     }
 
     public function hooks()
     {
         add_action('admin_menu', [$this, 'pageSettings'], 1);
-        add_action('init', [$this, 'connect']);
     }
 
-    public function connect()
+    public function firehose()
     {
-        /*if (!$this->client) {
+        if (!$this->client) {
             try {
-                $this->options();
+                $options = $this->options();
+
+                $profile = new InstanceProfileProvider();
+                $ARN = $options['role_arn'];
+
+                $assumeRoleCredentials = new AssumeRoleCredentialProvider([
+                    'client' => new StsClient([
+                        'region' => 'us-east-2',
+                        'version' => '2011-06-15',
+                        'credentials' => $profile
+                    ]),
+                    'assume_role_params' => [
+                        'RoleArn' => $ARN,
+                        'RoleSessionName' => $sessionName,
+                    ],
+                ]);
+
                 $this->client = new FirehoseClient([
                     'version' => '2015-08-04',
                     'region' => 'eu-west-1',
-                    new Credentials(env('AWS_ACCESS_KEY_ID'), env('AWS_SECRET_ACCESS_KEY'))
+                    new Credentials($options['access_key'], $options['access_secret'])
                 ]);
             } catch (AwsException $e) {
                 // output error message if fails
                 echo $e->getMessage();
                 echo "\n";
             }
-        }*/
+        }
+
+        return $this->client;
     }
 
     private function getStreamNames()
     {
         if ($this->canRun()) {
             try {
-                $result = $this->client->listDeliveryStreams([
+                $result = $this->firehose()->listDeliveryStreams([
                     'DeliveryStreamType' => 'DirectPut',
                 ]);
-                $this->this('getStreamNames', $result, true);
                 $this->updateOption('kinesis_streams', $result);
             } catch (AwsException $e) {
                 // output error message if fails
@@ -100,6 +116,7 @@ class Connection extends Admin
                 'callback' => [$this, 'kinesisIntro'],
                 'fields' => [
                     'stream_name' => ['title' => 'Stream Name', 'callback' => [$this, 'streamName']],
+                    'firehose_role' => ['title' => 'Role ARN', 'callback' => [$this, 'roleArn']],
                     'access_key' => ['title' => 'Access Key', 'callback' => [$this, 'accessKey']],
                     'access_secret' => ['title' => 'Access Secret', 'callback' => [$this, 'accessSecret']],
                     'access_keys_unlock' => ['title' => 'Key Protection', 'callback' => [$this, 'accessLock']]
@@ -140,6 +157,7 @@ class Connection extends Admin
 
         $output = '<p>Currently there are no streams available. This would suggest a connection to Kinesis is lost.<br>
             Please make sure your connection <strong>key</strong> and <strong>secret</strong> are correct.</p>';
+
         if (is_array($options['kinesis_streams'])) {
             $output = '<select name="' . $this->optionName() . '[kinesis_streams]">
                         <option value="" disabled="disabled">Choose a stream</option>';
@@ -149,7 +167,19 @@ class Connection extends Admin
             }
             $output = '</select><p>' . $description . '</p>';
         }
+
         echo $output;
+    }
+
+    public function roleArn()
+    {
+        $options = $this->options();
+        $description = __('The Firehose role ARN', $this->text_domain);
+        ?>
+        <input type="text" value="<?= $options['role_arn'] ?? '' ?>"
+               name='<?= $this->optionName() ?>[role_arn]'>
+        <p><?= $description ?></p>
+        <?php
     }
 
     public function accessKey()

@@ -10,7 +10,7 @@ namespace MOJElasticSearch;
 
 class Admin
 {
-    use Auth, Debug;
+    use Debug;
 
     public $prefix = 'moj_es';
     public $option_name = '_settings';
@@ -21,7 +21,6 @@ class Admin
 
     public function __construct()
     {
-        self::auth();
         $this->hooks();
     }
 
@@ -59,18 +58,12 @@ class Admin
     {
         add_thickbox();
 
+        echo '<form action="options.php" method="post" class="moj-es" enctype="multipart/form-data">';
+
         // Title section
         $title = __('MoJ ES', $this->text_domain);
         $title_admin = __('Extending the functionality of the ElasticPress plugin', $this->text_domain);
-        ?>
-
-        <h1><?= $title ?> <small class="sub-title">. <?= $title_admin ?></small></h1>
-
-        <?php
-
-        settings_errors();
-
-        echo '<form action="options.php" method="post" class="moj-es" enctype="multipart/form-data">';
+        echo '<h1>' . $title . ' <small class="sub-title">.' . $title_admin . '</small></h1>';
 
         // output tab buttons
         $this->tabs();

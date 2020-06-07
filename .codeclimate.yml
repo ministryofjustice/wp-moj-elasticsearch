@@ -15,7 +15,7 @@ checks:
   method-complexity:
     enabled: true
     config:
-      threshold: 8
+      threshold: 10
   method-count:
     enabled: true
     config:
@@ -23,7 +23,7 @@ checks:
   method-lines:
     enabled: true
     config:
-      threshold: 60
+      threshold: 50
   nested-control-flow:
     enabled: true
     config:
@@ -35,21 +35,19 @@ checks:
   similar-code:
     enabled: true
     config:
-      threshold: #language-specific defaults. overrides affect all languages.
+      threshold: 80
   identical-code:
     enabled: true
     config:
       threshold: #language-specific defaults. overrides affect all languages.
-phpmd:
-    checks:
-        Controversial/CamelCaseVariableName:
-            enabled: false
 plugins:
   phpcodesniffer:
     enabled: true
     config:
       standard: "PSR2"
   phpmd:
-    enabled: true
+      enabled: true
+      config:
+          rulesets: "cleancode,codesize,design,naming,unusedcode"
 exclude_patterns:
 - "vendor/"

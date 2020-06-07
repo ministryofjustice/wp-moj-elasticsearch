@@ -18,7 +18,6 @@ class SignAmazonEsRequests
     public function actions()
     {
         add_filter('http_request_args', [$this, 'signAwsRequest'], 10, 2);
-        add_action('http_api_debug', [$this, 'debugResponse'], 99, 5);
     }
 
     /**
