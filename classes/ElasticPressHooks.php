@@ -9,7 +9,6 @@ namespace MOJElasticSearch;
  *
  * @since 1.2.1
  */
-
 class ElasticPressHooks
 {
     public function __construct()
@@ -25,6 +24,7 @@ class ElasticPressHooks
     {
         add_filter('ep_elasticsearch_plugins', [$this, 'filterPlugins']);
         add_filter('ep_allowed_documents_ingest_mime_types', [$this, 'filterMimeTypes']);
+        add_action('ep_dashboard_start_index', [$this, 'preventDashboardIndex']);
     }
 
     /**
@@ -65,5 +65,10 @@ class ElasticPressHooks
         unset($mime_types['ods']);
 
         return $mime_types;
+    }
+
+    public function preventDashboardIndex()
+    {
+        // TODO: prevent dashboard sync from ElasticPress UI
     }
 }

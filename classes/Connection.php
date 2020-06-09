@@ -8,260 +8,282 @@
 
 namespace MOJElasticSearch;
 
-use MOJElasticSearch\ElasticSearch;
-use MOJElasticSearch\ImportExport;
+use Aws\Firehose\FirehoseClient;
+use Aws\Exception\AwsException;
+use Aws\Credentials\CredentialProvider;
+use Aws\Sts\StsClient;
 
-defined('ABSPATH') or die('No humans allowed.');
-
+/**
+ * Manages connections and data flow with AWS Kinesis
+ * Class Connection
+ * @package MOJElasticSearch
+ * @SuppressWarnings(PHPMD)
+ */
 class Connection extends Admin
 {
-    const OPTION_NAME = '_settings';
-    const OPTION_GROUP = '_plugin';
+    /**
+     * This class requires settings fields in the plugins dashboard.
+     * Include the Settings trait
+     */
+    use Settings, Debug;
+
+    /**
+     * A connection is stored here.
+     * Use this variable to access the AWS Kinesis Client
+     * @var null
+     */
+    public $client = null;
 
     public function __construct()
     {
-        // if (!ElasticSearch::live(self::options($this->prefix))) {
-        //     add_action('admin_notices', [$this, 'socketFailureNotice']);
-        // }
-
-        $this->actions();
+        parent::__construct();
+        $this->hooks();
+        $this->getStreamNames();
     }
 
-    public function actions()
+    public function hooks()
     {
-        add_action('admin_init', [$this, 'pageSettings']);
+        add_action('admin_menu', [$this, 'pageSettings'], 1);
     }
-    
+
+    public function firehose()
+    {
+        if (!$this->client) {
+            try {
+                $options = $this->options();
+
+                $profile = new InstanceProfileProvider();
+                $ARN = $options['role_arn'];
+
+                $assumeRoleCredentials = new AssumeRoleCredentialProvider([
+                    'client' => new StsClient([
+                        'region' => 'us-east-2',
+                        'version' => '2011-06-15',
+                        'credentials' => $profile
+                    ]),
+                    'assume_role_params' => [
+                        'RoleArn' => $ARN,
+                        'RoleSessionName' => $sessionName,
+                    ],
+                ]);
+
+                $this->client = new FirehoseClient([
+                    'version' => '2015-08-04',
+                    'region' => 'eu-west-1',
+                    new Credentials($options['access_key'], $options['access_secret'])
+                ]);
+            } catch (AwsException $e) {
+                // output error message if fails
+                echo $e->getMessage();
+                echo "\n";
+            }
+        }
+
+        return $this->client;
+    }
+
+    private function getStreamNames()
+    {
+        if ($this->canRun()) {
+            try {
+                $result = $this->firehose()->listDeliveryStreams([
+                    'DeliveryStreamType' => 'DirectPut',
+                ]);
+                $this->updateOption('kinesis_streams', $result);
+            } catch (AwsException $e) {
+                // output error message if fails
+                echo $e->getMessage();
+                echo "\n";
+            }
+        }
+    }
+
+    /**
+     * This method is quite literally a space saving settings method
+     *
+     * Create your tab by adding to the $tabs global array with a label as the value
+     * Configure a section with fields for that tab as arrays by adding to the $sections global array.
+     */
     public function pageSettings()
     {
-        register_setting($this->_optionGroup(), $this->optionName());
+        $group = 'kinesis';
 
-        add_settings_section(
-            $this->prefix . '_host_section',
-            __('Connection', $this->text_domain),
-            [$this, 'hostSectionIntro'],
-            $this->_optionGroup()
-        );
+        Admin::$tabs[$group] = 'AWS Kinesis';
+        Admin::$sections[$group] = [
+            [
+                'id' => 'kinesis_connect',
+                'title' => 'Connection',
+                'callback' => [$this, 'kinesisIntro'],
+                'fields' => [
+                    'stream_name' => ['title' => 'Stream Name', 'callback' => [$this, 'streamName']],
+                    'firehose_role' => ['title' => 'Role ARN', 'callback' => [$this, 'roleArn']],
+                    'access_key' => ['title' => 'Access Key', 'callback' => [$this, 'accessKey']],
+                    'access_secret' => ['title' => 'Access Secret', 'callback' => [$this, 'accessSecret']],
+                    'access_keys_unlock' => ['title' => 'Key Protection', 'callback' => [$this, 'accessLock']]
+                ]
+            ],
+            [
+                'id' => 'kinesis_index',
+                'title' => 'Refresh Index',
+                'callback' => [$this, 'kinesisIndexIntro'],
+                'fields' => [
+                    'index_per_post' => ['title' => 'Posts per-index', 'callback' => [$this, 'postsPerIndex']],
+                    'index_button' => ['title' => 'Index Now?', 'callback' => [$this, 'indexButton']]
+                ]
+            ]
+        ];
 
-        add_settings_field(
-            $this->prefix . '_text_host_address',
-            __('Host:', $this->text_domain),
-            [$this, 'mojESTextHostRender'],
-            $this->_optionGroup(),
-            $this->prefix . '_host_section'
-        );
-
-        add_settings_field(
-            $this->prefix . '_text_port_address',
-            __('Port:', $this->text_domain),
-            [$this, 'mojESTextPortRender'],
-            $this->_optionGroup(),
-            $this->prefix . '_host_section'
-        );
-
-        add_settings_field(
-            $this->prefix . '_select_port_active',
-            __('Port usage:', $this->text_domain),
-            [$this, 'mojESSelectPortActiveRender'],
-            $this->_optionGroup(),
-            $this->prefix . '_host_section'
-        );
-
-        add_settings_section(
-            $this->prefix . '_api_section',
-            __('API Settings', $this->text_domain),
-            [$this, 'apiSectionIntro'],
-            $this->_optionGroup()
-        );
-
-        add_settings_field(
-            $this->prefix . '_text_id',
-            __('API ID:', $this->text_domain),
-            [$this, 'mojESTextIdRender'],
-            $this->_optionGroup(),
-            $this->prefix . '_api_section'
-        );
-
-        add_settings_field(
-            $this->prefix . '_text_key',
-            __('API Key:', $this->text_domain),
-            [$this, 'mojESTextKeyRender'],
-            $this->_optionGroup(),
-            $this->prefix . '_api_section'
-        );
-
-        if (ElasticSearch::canRun()) {
-            add_settings_section(
-                $this->prefix . '_bulk_section',
-                __('Bulk Inserts', $this->text_domain),
-                [$this, 'bulkSectionIntro'],
-                $this->_optionGroup()
-            );
-
-            add_settings_field(
-                $this->prefix . '_multi_bulk',
-                __('Post types to import', $this->text_domain),
-                [$this, 'mojESMultiBulkRender'],
-                $this->_optionGroup(),
-                $this->prefix . '_bulk_section'
-            );
-
-            add_settings_field(
-                $this->prefix . '_checkbox_bulk',
-                __('Bulk insert now?', $this->text_domain),
-                [$this, 'mojESCheckboxBulkRender'],
-                $this->_optionGroup(),
-                $this->prefix . '_bulk_section'
-            );
-        }
+        $this->createSections($group);
     }
 
-    public function mojESTextHostRender()
+    public function kinesisIntro()
     {
-        $options = $this->_optionsArray();
-        $description = __('Use an AWS endpoint url or an IPv4 address.', $this->text_domain);
-
-        ?>
-        <input<?= $this->styles('text') ?> type="text" value="<?= $options['host'] ?: '' ?>" name='<?= $this->optionName() ?>[host]'>
-        <p><?= $description ?></p>
-        <?php
+        $heading = __('Enter the connection details for Kinesis Data Firehose', $this->text_domain);
+        $description = __('', $this->text_domain);
+        echo '<div class="intro"><strong>' . $heading . '</strong><br>' . $description . '</div>';
     }
 
-    public function mojESTextPortRender()
+    public function kinesisIndexIntro()
     {
-        $options = $this->_optionsArray();
-        $description = __('Default port is <em>9200</em>', $this->text_domain);
-
-        ?>
-        <input type="text" value="<?= $options['host_port'] ?: '' ?>" name='<?= $this->optionName() ?>[host_port]'>
-        <p><?= $description ?></p>
-        <?php
+        $heading = __('Launching a bulk index', $this->text_domain);
+        $description = __('Please use with caution on a production server', $this->text_domain);
+        echo '<div class="intro"><strong>' . $heading . '</strong><br>' . $description . '</div>';
     }
 
-    public function mojESSelectPortActiveRender()
+    public function streamName()
     {
-        $options = $this->_optionsArray();
-        $description = __('For instance; you might select No if the port number isn\'t needed in your host name', $this->text_domain);
-        ?>
-        <select name='<?= $this->optionName() ?>[host_port_ok]'>
-            <option value='' disabled="disabled">Use the port number?</option>
-            <option value='no' <?php selected($options['host_port_ok'], 'no'); ?>>No</option>
-            <option value='yes' <?php selected($options['host_port_ok'], 'yes'); ?>>Yes</option>
-        </select>
-        <p><?= $description ?></p>
-        <?php
-    }
+        $options = $this->options();
+        $description = __('A stream name.', $this->text_domain);
 
-    public function mojESTextIdRender()
-    {
-        $options = $this->_optionsArray();
+        $output = '<p>Currently there are no streams available. This would suggest a connection to Kinesis is lost.<br>
+            Please make sure your connection <strong>key</strong> and <strong>secret</strong> are correct.</p>';
 
-        ?>
-        <input<?= $this->styles('text') ?> type="password" value="<?= $options['api_id'] ?: '' ?>" name='<?= $this->optionName() ?>[api_id]'>
-        <?php
-    }
-
-    public function mojESTextKeyRender()
-    {
-        $options = $this->_optionsArray();
-        ?>
-        <input<?= $this->styles('text') ?> type="password" value="<?= $options['api_key'] ?: '' ?>" name='<?= $this->optionName() ?>[api_key]'>
-        <?php
-    }
-
-    public function mojESCheckboxBulkRender()
-    {
-        $options = $this->_optionsArray();
-        ?>
-        <input type='checkbox' name='<?= $this->optionName() ?>[bulk_activate]'
-               value='yes' <?= checked('yes', $options['bulk_activate'] ?? '') ?>>
-        <?php
-    }
-
-    public function mojESMultiBulkRender()
-    {
-        $options = $this->_optionsArray();
-        $post_types_bulk = $options['bulk_post_types'] ?? [];
-        $post_types = get_post_types(['public' => true, 'exclude_from_search' => false], 'objects');
-
-        $output = '';
-        foreach ($post_types as $type) {
-            $label = ucwords(str_replace(['_', '-'], ' ', $type->name));
-            $selected = '';
-            if (!empty($post_types_bulk)) {
-                $selected = (in_array($type->name, $post_types_bulk) ? ' selected="selected"' : '');
+        if (is_array($options['kinesis_streams'])) {
+            $output = '<select name="' . $this->optionName() . '[kinesis_streams]">
+                        <option value="" disabled="disabled">Choose a stream</option>';
+            foreach ($options['kinesis_streams'] as $stream) {
+                $output .= "<option value='" . $stream . "' " . selected($options['kinesis_streams'], $stream) . ">" .
+                    $stream . "</option>";
             }
-            $output .= '<option value="' . $type->name . '"' . $selected . '>' . $label . '</option>';
+            $output = '</select><p>' . $description . '</p>';
         }
+
+        echo $output;
+    }
+
+    public function roleArn()
+    {
+        $options = $this->options();
+        $description = __('The Firehose role ARN', $this->text_domain);
         ?>
-        <select<?= $this->styles('select') ?> name='<?= $this->optionName() ?>[bulk_post_types][]' multiple="multiple" size="8">
-            <option value='' disabled="disabled">Select multiple</option>
-            <?= $output ?>
-        </select>
-        <p><small>There are <?= count($post_types) ?> to choose from.</small></p>
+        <input type="text" value="<?= $options['role_arn'] ?? '' ?>"
+               name='<?= $this->optionName() ?>[role_arn]'>
+        <p><?= $description ?></p>
         <?php
     }
 
-    public function hostSectionIntro()
+    public function accessKey()
     {
-        $heading = __('Enter the host address info for your ES server', $this->text_domain);
-        $description = __('Please note that this entry will assist in signing AWS requests to the ES server and is identical to the', $this->text_domain);
-        echo '<div' . $this->styles('intro') . '><strong>' . $heading . '</strong><br>' . $description . '</div>';
+        $this->keyInput('access_key') ?>
+        <p><?= __('A key to access Kinesis', $this->text_domain) ?></p>
+        <?php
     }
 
-    public function apiSectionIntro()
+    public function accessSecret()
     {
-        $heading = __('Entering API access information', $this->text_domain);
-        $description = __('Create an API ID and Key in Kibana under the Security section "API Keys" and enter the details here', $this->text_domain);
-        echo '<div' . $this->styles('intro') . '><strong>' . $heading . '</strong><br>' . $description . '</div>';
+        $this->keyInput('access_secret') ?>
+        <p><?= __('A secret to access Kinesis', $this->text_domain) ?></p>
+        <?php
     }
 
-
-    public function bulkSectionIntro()
+    public function accessLock()
     {
-        $heading = __('Manage bulk inserts into Elasticsearch indexes', $this->text_domain);
-        $description = __('Start by selecting the post types you would like to sync with ES.', $this->text_domain);
-        echo '<div' . $this->styles('intro') . '><strong>' . $heading . '</strong><br>' . $description . '</div>';
-    }
-
-    protected function _optionGroup()
-    {
-        return $this->prefix . self::OPTION_GROUP;
-    }
-
-
-    public function optionName()
-    {
-        return $this->prefix . self::OPTION_NAME;
-    }
-
-    private function _optionsArray()
-    {
-        return get_option($this->optionName());
-    }
-
-    public static function options($namespace)
-    {
-        return get_option($namespace . self::OPTION_NAME);
-    }
-
-    public function updateOption($key, $value)
-    {
-        $options = $this->_optionsArray();
-
-        if (!isset($options[$key])) {
-            return false;
+        if (!$this->keysLocked()) {
+            echo "<strong>Keys will lock on update to protect from accidental disconnect.</strong>";
+            return;
         }
 
-        $options[$key] = $value;
-        update_option($this->optionName(), $options);
+        $options = $this->options();
+        $description = __(
+            'Enter the phrase "<strong class="red">update keys</strong>" to access the Kinesis key and secret.',
+            $this->text_domain
+        );
+        ?>
+        <input type="text" value="<?= $options['access_keys_unlock'] ?? '' ?>"
+               name='<?= $this->optionName() ?>[access_keys_unlock]'>
+        <p><?= $description ?></p>
+        <?php
     }
 
-    public function socketFailureNotice()
+    public function keyInput($key)
     {
-        $class = 'notice notice-error';
-        $message = __('Please check your settings below. A connection to the ES server cannot be established.', $this->text_domain);
+        $value = $this->options()[$key];
+        $readonly = '';
+        $type = 'text';
 
-        //printf('<div class="%1$s"><p>%2$s</p></div>', esc_attr($class), esc_html($message));
+        if ($this->keysLocked()) {
+            $readonly = ' readonly="readonly"';
+            $type = 'password';
+        }
+
+        echo '<input
+                type="' . $type . '"
+                value="' . $value . '"
+                name="' . $this->optionName() . '[' . $key . ']"
+                class="input"' . $readonly . ' />';
+    }
+
+    public function postsPerIndex()
+    {
+        $options = $this->options();
+        $description = __('How many posts should we send at once? One is the default.', $this->text_domain);
+        ?>
+        <input type="number" value="<?= $options['index_per_post'] ?? '' ?>"
+               name='<?= $this->optionName() ?>[index_per_post]'>
+        <p><?= $description ?></p>
+        <?php
+    }
+
+    public function indexButton()
+    {
+        $description = __(
+            'You will be asked to confirm your decision. Please use this button with due consideration.',
+            $this->text_domain
+        );
+        ?>
+        <div id="my-content-id" style="display:none;">
+            <p>
+                Please make sure you are aware of the implications when commanding a new index. If you are unsure, exit
+                out of this box by clicking away from this modal.<br><strong>Please confirm:</strong>
+            </p>
+            <a class="button-primary index_pre_link"
+               title="Are you sure?">
+                I'm ready to refresh the index... GO!
+            </a>
+        </div>
+        <button name='<?= $this->optionName() ?>[index_button]' class="button-primary index_button" disabled="disabled">
+            Destroy index and refresh
+        </button>
+        <a href="#TB_inline?&width=400&height=150&inlineId=my-content-id" class="button-primary thickbox"
+           title="Refresh Elasticsearch Index">
+            Destroy index and refresh
+        </a>
+        <p><?= $description ?></p>
+        <?php
+    }
+
+    private function canRun()
+    {
+        return $this->client;
+    }
+
+    private function keysLocked()
+    {
+        $options = $this->options();
+        if (isset($options['access_keys_lock']) && $options['access_keys_lock'] === 'yes') {
+            return true;
+        }
+
+        return false;
     }
 }

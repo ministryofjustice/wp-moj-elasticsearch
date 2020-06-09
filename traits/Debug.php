@@ -7,35 +7,23 @@ trait Debug
     /**
      * Define a heading and pass through a variable to display output
      *
-     * @uses DEBUG_ECHO
      * @param string $heading
      * @param mixed $var
-     * @param bool $die
      * @return string|null
      */
-    public static function this(string $heading, $var, $die = false)
+    public function debug(string $heading, $var)
     {
-        $bt = debug_backtrace();
-        $function = $bt[2]['function'];
-        $caller = array_shift($bt);
+        $backtrace = debug_backtrace();
+        $function = $backtrace[2]['function'];
+        $caller = array_shift($backtrace);
 
-        $line = self::_green("line " . $caller['line']);
-        $function = self::_green($function . "()");
+        $line = self::green("line " . $caller['line']);
+        $function = self::green($function . "()");
         $info = "----------------------------------------------\n";
         $info .= "<em>Called in function " . $function . ", " . $line . "</span>\nType: " . gettype($var) . "</em>";
         $info .= "\n-------\n\n";
 
-        $output = "<pre>" . $info . print_r($heading, true) . "\n\n" . print_r($var, true) . "\n\n</pre>";
-
-        if (defined('DEBUG_ECHO') && DEBUG_ECHO === true) {
-            echo $output;
-            if ($die) {
-                die();
-            }
-            return null;
-        }
-
-        return $output;
+        return "<pre>" . $info . print_r($heading, true) . "\n\n" . print_r($var, true) . "\n\n</pre>";
     }
 
     /**
@@ -44,7 +32,7 @@ trait Debug
      * @param string $text
      * @return string
      */
-    private static function _green($text)
+    private function green($text)
     {
         return '<span style="color:green;font-weight: bold">' . $text . "</span>";
     }

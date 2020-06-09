@@ -11,16 +11,11 @@ use MOJElasticSearch\Admin;
 
 class ElasticSearch
 {
-    use ClientConnect;
+    use FireHoseConnect;
     use Debug;
 
     public function __construct()
     {
-        // if (ElasticSearch::canRun()) {
-        //     return $this->client();
-        // }
-
-        return null;
     }
 
     public static function canRun()
