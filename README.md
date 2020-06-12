@@ -1,5 +1,5 @@
 # WP MoJ ElasticSearch
-[![Maintainability](https://api.codeclimate.com/v1/badges/e0dd3ecfdd2258f11ff3/maintainability)](https://codeclimate.com/github/ministryofjustice/wp-moj-elasticsearch/maintainability) [![Test Coverage](https://api.codeclimate.com/v1/badges/e0dd3ecfdd2258f11ff3/test_coverage)](https://codeclimate.com/github/ministryofjustice/wp-moj-elasticsearch/test_coverage)
+[![Maintainability](https://api.codeclimate.com/v1/badges/4f7226e63446f09b363c/maintainability)](https://codeclimate.com/github/ministryofjustice/wp-moj-elasticsearch/maintainability) [![Test Coverage](https://api.codeclimate.com/v1/badges/4f7226e63446f09b363c/test_coverage)](https://codeclimate.com/github/ministryofjustice/wp-moj-elasticsearch/test_coverage)
 
 This plugin aspires to be great and to hold no bounds...
 

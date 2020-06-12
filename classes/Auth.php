@@ -69,7 +69,7 @@ class Auth
     public function canView()
     {
         if (!is_admin() || !current_user_can('manage_options')) {
-            $_get = $_GET['page'];
+            $_get = $_GET['page'] ?? '';
             if ($_get === 'moj_es') {
                 $this->error('forbidden');
             }
