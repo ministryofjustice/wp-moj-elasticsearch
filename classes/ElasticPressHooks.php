@@ -67,8 +67,10 @@ class ElasticPressHooks
         return $mime_types;
     }
 
-    public function preventDashboardIndex()
+    public function preventDashboardIndex($index_meta)
     {
         // TODO: prevent dashboard sync from ElasticPress UI
+
+        return $index_meta;
     }
 }

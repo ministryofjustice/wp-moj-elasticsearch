@@ -8,10 +8,9 @@
 
 namespace MOJElasticSearch;
 
-use Aws\Firehose\FirehoseClient;
 use Aws\Exception\AwsException;
-use Aws\Credentials\CredentialProvider;
-use Aws\Sts\StsClient;
+use Aws\Firehose\FirehoseClient;
+use Aws\Firehose\Exception\FirehoseException;
 
 /**
  * Manages connections and data flow with AWS Kinesis
@@ -34,15 +33,35 @@ class Connection extends Admin
      */
     public $client = null;
 
+    /**
+     * Flag to indicate whether the connection to Kinesis failed
+     * @var bool
+     */
+    protected $client_failed = false;
+
+    /**
+     * Flag to indicate whether the connection to Kinesis failed
+     * @var bool
+     */
+    protected $client_credentials = null;
+
+    /**
+     * Flag to indicate if an AWS Key and Secret is available in the environment. Is an array if they do.
+     * @var bool|array
+     */
+    protected $aws_env = false;
+
     public function __construct()
     {
         parent::__construct();
+        $this->firehose();
         $this->hooks();
         $this->getStreamNames();
     }
 
     public function hooks()
     {
+        add_action('init', [$this, 'getStreamNames'], 1);
         add_action('admin_menu', [$this, 'pageSettings'], 1);
     }
 
@@ -50,52 +69,47 @@ class Connection extends Admin
     {
         if (!$this->client) {
             try {
-                $options = $this->options();
-
-                $profile = new InstanceProfileProvider();
-                $ARN = $options['role_arn'];
-
-                $assumeRoleCredentials = new AssumeRoleCredentialProvider([
-                    'client' => new StsClient([
-                        'region' => 'us-east-2',
-                        'version' => '2011-06-15',
-                        'credentials' => $profile
-                    ]),
-                    'assume_role_params' => [
-                        'RoleArn' => $ARN,
-                        'RoleSessionName' => $sessionName,
-                    ],
-                ]);
+                if (!$this->checkAwsEnvironment()) {
+                    $options = $this->options();
+                    if (!isset($options['access_key'])) {
+                        return false;
+                    }
+                    $this->client_credentials = [
+                        'key' => $options['access_key'],
+                        'secret' => $options['access_secret'],
+                    ];
+                }
 
                 $this->client = new FirehoseClient([
                     'version' => '2015-08-04',
                     'region' => 'eu-west-1',
-                    new Credentials($options['access_key'], $options['access_secret'])
+                    'credentials' => $this->client_credentials
                 ]);
-            } catch (AwsException $e) {
-                // output error message if fails
-                echo $e->getMessage();
-                echo "\n";
+            } catch (FirehoseException $e) {
+                $this->client_failed = true;
             }
         }
 
         return $this->client;
     }
 
-    private function getStreamNames()
+    public function getStreamNames()
     {
         if ($this->canRun()) {
             try {
                 $result = $this->firehose()->listDeliveryStreams([
-                    'DeliveryStreamType' => 'DirectPut',
+                    'DeliveryStreamType' => 'DirectPut'
                 ]);
+                $result = $result->get('DeliveryStreamNames');
                 $this->updateOption('kinesis_streams', $result);
+                return;
             } catch (AwsException $e) {
-                // output error message if fails
-                echo $e->getMessage();
-                echo "\n";
+                $this->client_failed = true;
+                return;
             }
         }
+
+        $this->deleteOption('kinesis_streams');
     }
 
     /**
@@ -115,11 +129,7 @@ class Connection extends Admin
                 'title' => 'Connection',
                 'callback' => [$this, 'kinesisIntro'],
                 'fields' => [
-                    'stream_name' => ['title' => 'Stream Name', 'callback' => [$this, 'streamName']],
-                    'firehose_role' => ['title' => 'Role ARN', 'callback' => [$this, 'roleArn']],
-                    'access_key' => ['title' => 'Access Key', 'callback' => [$this, 'accessKey']],
-                    'access_secret' => ['title' => 'Access Secret', 'callback' => [$this, 'accessSecret']],
-                    'access_keys_unlock' => ['title' => 'Key Protection', 'callback' => [$this, 'accessLock']]
+                    'stream_name' => ['title' => 'Stream Name', 'callback' => [$this, 'streamName']]
                 ]
             ],
             [
@@ -133,12 +143,22 @@ class Connection extends Admin
             ]
         ];
 
+        // don't confuse the interface. If AWS env vars exist don't show these fields
+        if (!$this->aws_env) {
+            Admin::$sections[$group][0]['fields']['access_key'] = ['title' => 'Access Key', 'callback' => [$this, 'accessKey']];
+            Admin::$sections[$group][0]['fields']['access_secret'] = ['title' => 'Access Secret', 'callback' => [$this, 'accessSecret']];
+            Admin::$sections[$group][0]['fields']['access_keys_unlock'] = ['title' => 'Key Protection', 'callback' => [$this, 'accessLock']];
+        }
+
         $this->createSections($group);
     }
 
     public function kinesisIntro()
     {
         $heading = __('Enter the connection details for Kinesis Data Firehose', $this->text_domain);
+        if ($this->aws_env) {
+            $heading = __('Select a stream for Kinesis Data Firehose', $this->text_domain);
+        }
         $description = __('', $this->text_domain);
         echo '<div class="intro"><strong>' . $heading . '</strong><br>' . $description . '</div>';
     }
@@ -153,33 +173,22 @@ class Connection extends Admin
     public function streamName()
     {
         $options = $this->options();
-        $description = __('A stream name.', $this->text_domain);
+        $description = __('Define the connection stream. Data will be sent here.', $this->text_domain);
 
-        $output = '<p>Currently there are no streams available. This would suggest a connection to Kinesis is lost.<br>
+        $output = '<p>Currently there are no streams available. This would suggest a connection to Kinesis cannot be made.<br>
             Please make sure your connection <strong>key</strong> and <strong>secret</strong> are correct.</p>';
 
         if (is_array($options['kinesis_streams'])) {
             $output = '<select name="' . $this->optionName() . '[kinesis_streams]">
-                        <option value="" disabled="disabled">Choose a stream</option>';
-            foreach ($options['kinesis_streams'] as $stream) {
-                $output .= "<option value='" . $stream . "' " . selected($options['kinesis_streams'], $stream) . ">" .
-                    $stream . "</option>";
+                        <option value="">Choose a stream</option>';
+            foreach ($options['kinesis_streams'] as $key => $stream) {
+                $output .= "<option value='" . $stream . "' " . selected($options['kinesis_streams'][$key], $stream, false) . ">" .
+                    ucwords(str_replace(['-', '_'], ' ', $stream)) . "</option>";
             }
-            $output = '</select><p>' . $description . '</p>';
+            $output .= '</select><p>' . $description . '</p>';
         }
 
         echo $output;
-    }
-
-    public function roleArn()
-    {
-        $options = $this->options();
-        $description = __('The Firehose role ARN', $this->text_domain);
-        ?>
-        <input type="text" value="<?= $options['role_arn'] ?? '' ?>"
-               name='<?= $this->optionName() ?>[role_arn]'>
-        <p><?= $description ?></p>
-        <?php
     }
 
     public function accessKey()
@@ -205,7 +214,7 @@ class Connection extends Admin
 
         $options = $this->options();
         $description = __(
-            'Enter the phrase "<strong class="red">update keys</strong>" to access the Kinesis key and secret.',
+            'Enter the phrase "<strong class="red">update keys</strong>" to access AWS key and secret.',
             $this->text_domain
         );
         ?>
@@ -219,11 +228,10 @@ class Connection extends Admin
     {
         $value = $this->options()[$key];
         $readonly = '';
-        $type = 'text';
+        $type = 'password';
 
         if ($this->keysLocked()) {
             $readonly = ' readonly="readonly"';
-            $type = 'password';
         }
 
         echo '<input
@@ -285,5 +293,24 @@ class Connection extends Admin
         }
 
         return false;
+    }
+
+    public function checkAwsEnvironment()
+    {
+        $key = getenv('AWS_ACCESS_KEY_ID');
+        $secret = getenv('AWS_SECRET_ACCESS_KEY');
+        if ($key && $secret) {
+            $this->clearAPIKeySecret();
+            return $this->aws_env = true;
+        }
+
+        return false;
+    }
+
+    public function clearAPIKeySecret()
+    {
+        $options = $this->options();
+        unset($options['access_key']);
+        unset($options['access_secret']);
     }
 }

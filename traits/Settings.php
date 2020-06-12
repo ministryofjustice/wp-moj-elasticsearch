@@ -65,11 +65,21 @@ trait Settings
     {
         $options = $this->options();
 
-        if (!isset($options[$key])) {
-            return false;
-        }
-
         $options[$key] = $value;
+        update_option($this->optionName(), $options);
+    }
+
+    /**
+     * Delete a setting value using the WP Settings API
+     * @param $key
+     * @param $value
+     * @return bool
+     */
+    public function deleteOption($key)
+    {
+        $options = $this->options();
+
+        unset($options[$key]);
         update_option($this->optionName(), $options);
     }
 }
