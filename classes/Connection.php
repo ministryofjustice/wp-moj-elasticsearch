@@ -145,9 +145,18 @@ class Connection extends Admin
 
         // don't confuse the interface. If AWS env vars exist don't show these fields
         if (!$this->aws_env) {
-            Admin::$sections[$group][0]['fields']['access_key'] = ['title' => 'Access Key', 'callback' => [$this, 'accessKey']];
-            Admin::$sections[$group][0]['fields']['access_secret'] = ['title' => 'Access Secret', 'callback' => [$this, 'accessSecret']];
-            Admin::$sections[$group][0]['fields']['access_keys_unlock'] = ['title' => 'Key Protection', 'callback' => [$this, 'accessLock']];
+            Admin::$sections[$group][0]['fields']['access_key'] = [
+                'title' => 'Access Key',
+                'callback' => [$this, 'accessKey']
+            ];
+            Admin::$sections[$group][0]['fields']['access_secret'] = [
+                'title' => 'Access Secret',
+                'callback' => [$this, 'accessSecret']
+            ];
+            Admin::$sections[$group][0]['fields']['access_keys_unlock'] = [
+                'title' => 'Key Protection',
+                'callback' => [$this, 'accessLock']
+            ];
         }
 
         $this->createSections($group);
@@ -175,14 +184,17 @@ class Connection extends Admin
         $options = $this->options();
         $description = __('Define the connection stream. Data will be sent here.', $this->text_domain);
 
-        $output = '<p>Currently there are no streams available. This would suggest a connection to Kinesis cannot be made.<br>
-            Please make sure your connection <strong>key</strong> and <strong>secret</strong> are correct.</p>';
+        $output = '<p>Currently there are no streams available.
+                        This would suggest a connection to Kinesis cannot be made.<br>
+                        Please make sure your connection <strong>key</strong> and <strong>secret</strong>
+                        are correct.</p>';
 
         if (is_array($options['kinesis_streams'])) {
             $output = '<select name="' . $this->optionName() . '[kinesis_streams]">
                         <option value="">Choose a stream</option>';
             foreach ($options['kinesis_streams'] as $key => $stream) {
-                $output .= "<option value='" . $stream . "' " . selected($options['kinesis_streams'][$key], $stream, false) . ">" .
+                $output .= "<option value='" . $stream . "' " .
+                    selected($options['kinesis_streams'][$key], $stream, false) . ">" .
                     ucwords(str_replace(['-', '_'], ' ', $stream)) . "</option>";
             }
             $output .= '</select><p>' . $description . '</p>';
