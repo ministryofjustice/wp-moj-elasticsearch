@@ -8,6 +8,11 @@
 
 namespace MOJElasticSearch;
 
+/**
+ * Class Admin
+ * @package MOJElasticSearch
+ * @SuppressWarnings(PHPMD.TooManyPublicMethods)
+ */
 class Admin
 {
     use Debug;
@@ -28,6 +33,8 @@ class Admin
     {
         add_action('admin_enqueue_scripts', [$this, 'enqueue']);
         add_action('admin_menu', [$this, 'settingsPage']);
+        add_action('ep_dashboard_start_index', [$this, 'clearStats']);
+        add_action('ep_wp_cli_pre_index', [$this, 'clearStats']);
     }
 
     public function enqueue()
@@ -133,10 +140,14 @@ class Admin
             self::weightingUploadHandler();
         }
 
-        // catch Kinesis index action
+        // catch Bulk index action
         if (isset($options['index_button'])) {
-            // start indexing kinesis here
-            self::settingNotice('We made it here but you cannot index via Kinesis yet!', 'bulk-error');
+            /*add_action('plugins_loaded', ['\MOJElasticSearch\Admin', 'initIndexBulk']);
+            $bulk = new IndexBulk();
+            $bulk->push_to_queue(['cmd' => 'wp elasticpress index --setup --per-page=1 --allow-root']);
+            $bulk->save()->dispatch();*/
+
+            self::settingNotice('Bulk index is not available by this method yet', 'bulk-warning', 'warning');
         }
 
         // catch keys unlock requests and reset lock
@@ -163,12 +174,19 @@ class Admin
 
     /**
      * Simple wrapper to fetch the plugins data array
+     * @param $key [string]
      * @return mixed|void
      * @uses get_option()
      */
-    public function options()
+    public function options($key = '')
     {
-        return get_option($this->optionName(), []);
+        $options = get_option($this->optionName(), []);
+
+        if (!empty($key)) {
+            return $options[$key] ?? null;
+        }
+
+        return $options;
     }
 
     /**
@@ -196,7 +214,7 @@ class Admin
      * @param $code
      * @param string $type
      */
-    public static function settingNotice($notice, $code, $type = 'error')
+    private static function settingNotice($notice, $code, $type = 'error')
     {
         add_settings_error(
             'moj_es_settings',
@@ -265,9 +283,42 @@ class Admin
      * Defines the import data location in the uploads directory.
      * @return string
      */
-    public static function importLocation()
+    public function importLocation()
     {
         $file_dir = wp_get_upload_dir()['basedir'] . DIRECTORY_SEPARATOR;
         return $file_dir . basename(plugin_dir_path(dirname(__FILE__, 1))) . DIRECTORY_SEPARATOR;
+    }
+
+    public function getStats($key = '')
+    {
+        if (!file_exists($this->importLocation() . 'moj-bulk-index-stats.json')) {
+            self::setStats([
+                'total_real_requests' => 0,
+                'total_mock_requests' => 0,
+                'total_normal_requests' => 0,
+                'total_large_requests' => 0,
+                'large_files' => [],
+            ]);
+        }
+
+        $stats = (array)json_decode(file_get_contents($this->importLocation() . 'moj-bulk-index-stats.json'));
+
+        if (!empty($key)) {
+            return $stats[$key] ?? null;
+        }
+
+        return $stats;
+    }
+
+    public function setStats($es_stats)
+    {
+        $handle = fopen($this->importLocation() . 'moj-bulk-index-stats.json', 'w');
+        fwrite($handle, json_encode($es_stats));
+        fclose($handle);
+    }
+
+    public function clearStats()
+    {
+        unlink($this->importLocation() . 'moj-bulk-index-body.json');
     }
 }

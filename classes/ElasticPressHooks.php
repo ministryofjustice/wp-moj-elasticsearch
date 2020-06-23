@@ -24,7 +24,6 @@ class ElasticPressHooks
     {
         add_filter('ep_elasticsearch_plugins', [$this, 'filterPlugins']);
         add_filter('ep_allowed_documents_ingest_mime_types', [$this, 'filterMimeTypes']);
-        add_action('ep_dashboard_start_index', [$this, 'preventDashboardIndex']);
     }
 
     /**
@@ -65,12 +64,5 @@ class ElasticPressHooks
         unset($mime_types['ods']);
 
         return $mime_types;
-    }
-
-    public function preventDashboardIndex($index_meta)
-    {
-        // TODO: prevent dashboard sync from ElasticPress UI
-
-        return $index_meta;
     }
 }

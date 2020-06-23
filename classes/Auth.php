@@ -59,7 +59,7 @@ class Auth
     {
         // check if ElasticPress available
         if (!defined('EP_VERSION')) {
-            $this->error('unavailable');
+            $this->exitPlugin('PluginCantRun');
         }
     }
 
@@ -88,6 +88,17 @@ class Auth
         exit;
     }
 
+    /**
+     * Error helper for private exit methods
+     * @param String $callback
+     * @return null
+     * @SuppressWarnings(PHPMD.ExitExpression)
+     */
+    public function exitPlugin(String $callback)
+    {
+        add_action('admin_notices', [$this, 'notice' . $callback]);
+    }
+
     public function unauthorised()
     {
         header("HTTP/1.1 401 Unauthorized");
@@ -101,5 +112,13 @@ class Auth
     public function unavailable()
     {
         header("HTTP/1.1 503 Service Temporarily Unavailable");
+    }
+
+    public function noticePluginCantRun()
+    {
+        $class = 'notice notice-error is-dismissible';
+        $message = __('Whoops! MoJ Elasticsearch cannot run. Please check that ElasticPress is activated.');
+
+        printf('<div class="%1$s"><p>%2$s</p></div>', esc_attr($class), esc_html($message));
     }
 }
