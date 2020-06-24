@@ -173,15 +173,16 @@ class Index extends Admin
         $stats['total_mock_requests'] = $stats['total_mock_requests'] ?? 0;
         $stats['total_mock_requests']++;
         $stats['last_url'] = $query['url'];
-        $args_less_body = $args;
-        unset($args_less_body['body']);
-        $stats['last_args'] = json_encode($args_less_body);
+
+        // remove body from overall payload for reporting
+        unset($args['body']);
+        $stats['last_args'] = json_encode($args);
         $this->setStats($stats);
 
         // mock response
         return array(
             'headers' => array(),
-            'body' => file_get_contents('../assets/mock.json'),
+            'body' => file_get_contents(__DIR__ . '/../assets/mock.json'),
             'response' => array(
                 'code' => 200,
                 'message' => 'OK',
@@ -223,15 +224,7 @@ class Index extends Admin
                 'title' => 'Latest indexing stats',
                 'callback' => [$this, 'indexStatsIntro'],
                 'fields' => [
-                    'stats' => ['title' => 'Index Statistics', 'callback' => [$this, 'indexStatistics']]
-                ]
-            ],
-            [
-                'id' => 'refresh_index',
-                'title' => 'Refresh Index',
-                'callback' => [$this, 'refreshIndexIntro'],
-                'fields' => [
-                    'index_per_post' => ['title' => 'Posts per-index', 'callback' => [$this, 'postsPerIndex']],
+                    'stats' => ['title' => 'Index Statistics', 'callback' => [$this, 'indexStatistics']],
                     'index_button' => ['title' => 'Index Now?', 'callback' => [$this, 'indexButton']]
                 ]
             ]
@@ -283,24 +276,6 @@ class Index extends Admin
 
         $description = __('', $this->text_domain);
         echo '<div class="intro"><strong>' . $heading . '</strong><br>' . $description . '</div>';
-    }
-
-    public function refreshIndexIntro()
-    {
-        $heading = __('Launching a bulk index', $this->text_domain);
-        $description = __('', $this->text_domain);
-        echo '<div class="intro"><strong>' . $heading . '</strong><br>' . $description . '</div>';
-    }
-
-    public function postsPerIndex()
-    {
-        $options = $this->options();
-        $description = __('How many posts should we send at once? One is the default.', $this->text_domain);
-        ?>
-        <input type="number" value="<?= $options['index_per_post'] ?? 1 ?>"
-               name='<?= $this->optionName() ?>[index_per_post]'>
-        <p><?= $description ?></p>
-        <?php
     }
 
     public function indexButton()
