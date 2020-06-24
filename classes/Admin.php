@@ -8,6 +8,8 @@
 
 namespace MOJElasticSearch;
 
+use function ElasticPress\Utils\is_indexing;
+
 /**
  * Class Admin
  * @package MOJElasticSearch
@@ -35,6 +37,7 @@ class Admin
         add_action('admin_menu', [$this, 'settingsPage']);
         add_action('ep_dashboard_start_index', [$this, 'clearStats']);
         add_action('ep_wp_cli_pre_index', [$this, 'clearStats']);
+        add_filter('cron_schedules', [$this, 'addCronIntervals']);
     }
 
     public function enqueue()
@@ -45,6 +48,7 @@ class Admin
             plugins_url('../', __FILE__) . 'assets/js/main.js',
             ['jquery']
         );
+        wp_localize_script('moj-es-js', 'moj_js_object', array('ajaxurl' => admin_url('admin-ajax.php')));
     }
 
     public function settingsPage()
@@ -142,12 +146,24 @@ class Admin
 
         // catch Bulk index action
         if (isset($options['index_button'])) {
-            /*add_action('plugins_loaded', ['\MOJElasticSearch\Admin', 'initIndexBulk']);
-            $bulk = new IndexBulk();
-            $bulk->push_to_queue(['cmd' => 'wp elasticpress index --setup --per-page=1 --allow-root']);
-            $bulk->save()->dispatch();*/
+            if (is_indexing()) {
+                self::settingNotice(
+                    'The index cannot be refreshed until the current cycle has completed.',
+                    'bulk-warning',
+                    'warning'
+                );
+                return $options;
+            }
 
-            self::settingNotice('Bulk index is not available by this method yet', 'bulk-warning', 'warning');
+            exec("wp elasticpress index --setup --per-page=1 --allow-root > /dev/null &");
+            self::settingNotice('Bulk index has started', 'bulk-warning', 'warning');
+        }
+
+        // catch Bulk index action kill
+        if (isset($options['index_kill'])) {
+            add_filter('ep_post_index_kill', ['\MOJElasticSearch\Admin', 'killIndexBulk']);
+
+            self::settingNotice('Bulk index has started', 'bulk-warning', 'warning');
         }
 
         // catch keys unlock requests and reset lock
@@ -320,5 +336,24 @@ class Admin
     public function clearStats()
     {
         unlink($this->importLocation() . 'moj-bulk-index-body.json');
+    }
+
+    /**
+     * @param $schedules
+     * @return array
+     */
+    public function addCronIntervals($schedules): array
+    {
+        $schedules['five_seconds'] = [
+            'interval' => 5,
+            'display' => esc_html__('Every 5 seconds')
+        ];
+
+        $schedules['one_minute'] = [
+            'interval' => 60,
+            'display' => esc_html__('Every Minute')
+        ];
+
+        return $schedules;
     }
 }

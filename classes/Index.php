@@ -2,6 +2,8 @@
 
 namespace MOJElasticSearch;
 
+use function ElasticPress\Utils\is_indexing;
+
 /**
  * Class Index
  * @package MOJElasticSearch
@@ -16,6 +18,8 @@ class Index extends Admin
      */
     use Settings, Debug;
 
+    private $stat_output_echo = true;
+
     public function __construct()
     {
         parent::__construct();
@@ -26,7 +30,8 @@ class Index extends Admin
     {
         add_action('admin_menu', [$this, 'pageSettings'], 1);
         add_filter('ep_pre_request_url', [$this, 'request'], 11, 5);
-        add_action('ep_cli_Posts_bulk_index', [$this, 'cleanUpIndexing']);
+        add_action('moj_es_cron_hook', [$this, 'cleanUpIndexing']);
+        add_action('wp_ajax_stats_load', [$this, 'getStatsHTML']);
     }
 
     /**
@@ -44,6 +49,11 @@ class Index extends Admin
         remove_filter('ep_intercept_remote_request', [$this, 'interceptTrue']);
         remove_filter('ep_do_intercept_request', [$this, 'requestIntercept'], 11);
         remove_filter('ep_do_intercept_request', [$this, 'requestInterceptFalsy'], 11);
+
+        // schedule a task to clean up the index once it has finished
+        if (!wp_next_scheduled('moj_es_cron_hook')) {
+            wp_schedule_event(time(), 'five_seconds', 'moj_es_cron_hook');
+        }
 
         $allow_methods = [
             'POST',
@@ -204,7 +214,53 @@ class Index extends Admin
 
     public function cleanUpIndexing()
     {
-        // todo: make sure the 'moj-bulk-index-body.json' file isn't empty, if so, one last request and unlink it.
+        if (is_indexing()) {
+            return;
+        }
+
+        if (file_exists($this->importLocation() . 'moj-bulk-index-body.json')) {
+            if (filesize($this->importLocation() . 'moj-bulk-index-body.json') > 0) {
+                // send last batch of posts to index
+
+                $stat_error = false;
+                $stats = $this->getStats();
+                $query = [];
+                $query['url'] = $stats['last_url'] ?? null;
+                $args = $stats['last_args'] ?? null;
+                $args = (array)json_decode($args);
+
+                if (!$query['url']) {
+                    $stats['cleanup_error'] = 'POST URL not available in stats array';
+                    $stat_error = true;
+                }
+
+                if (!$args) {
+                    $stats['cleanup_error'] = 'POST ARGS not available in stats array';
+                    $stat_error = true;
+                }
+
+                $this->requestIntercept(null, $query, $args, null);
+
+                if (file_exists($this->importLocation() . 'moj-bulk-index-body.json')) {
+                    $stats['cleanup_error'] = 'Bodies file still exists after sending last request';
+                    $stat_error = true;
+                }
+
+                if ($stat_error) {
+                    $this->setStats($stats);
+
+                    wp_mail(
+                        get_bloginfo('admin_email'),
+                        'Indexing errors have been found',
+                        $this->debug('Indexing Stats', $stats)
+                    );
+                }
+
+                // now we are done, stop the cron hook from running:
+                $timestamp = wp_next_scheduled('moj_es_cron_hook');
+                wp_unschedule_event($timestamp, 'moj_es_cron_hook');
+            }
+        }
     }
 
     /**
@@ -212,6 +268,8 @@ class Index extends Admin
      *
      * Create your tab by adding to the $tabs global array with a label as the value
      * Configure a section with fields for that tab as arrays by adding to the $sections global array.
+     *
+     * @SuppressWarnings(PHPMD)
      */
     public function pageSettings()
     {
@@ -235,7 +293,14 @@ class Index extends Admin
 
     public function indexStatistics()
     {
-        echo '<ul>';
+        $output = '<div id="moj-es-indexing-stats">';
+        if (is_indexing()) {
+            $output .= '<div class="notice notice-warning moj-es-stats-index-notice">
+                    <p>Indexing is currently active</p>
+                </div>';
+        }
+
+        $output .= '<ul>';
         $total_files = '';
         $requests = '';
 
@@ -251,7 +316,9 @@ class Index extends Admin
                     $total_files .= '<ol>';
 
                     foreach ($stat as $pid) {
-                        $link = '<a href="/wp/wp-admin/post.php?post=' . $pid . '&action=edit">' . $pid . '</a>';
+                        $link = '<a href="/wp/wp-admin/post.php?post=' .
+                            $pid->index->_id . '&action=edit" target="_blank">' .
+                            $pid->index->_id . '</a>';
                         $total_files .= '<li><strong>' . $link . '</strong></li>';
                     }
 
@@ -265,9 +332,15 @@ class Index extends Admin
             }
         }
 
-        echo $requests;
-        echo $total_files;
-        echo '</ul>';
+        $output .= $requests;
+        $output .= $total_files;
+        $output .= '</ul></div>';
+
+        if (!$this->stat_output_echo) {
+            return $output;
+        }
+
+        echo $output;
     }
 
     public function indexStatsIntro()
@@ -304,5 +377,24 @@ class Index extends Admin
         </a>
         <p><?= $description ?></p>
         <?php
+    }
+
+    public function mojesRegisterRoutes()
+    {
+        // register_rest_route() handles more arguments but we are going to stick to the basics for now.
+        register_rest_route('moj-es', '/stats', array(
+            // By using this constant we ensure that when the WP_REST_Server changes our readable endpoints will work as intended.
+            'methods' => \WP_REST_Server::READABLE,
+            // Here we register our callback. The callback is fired when this endpoint is matched by the WP_REST_Server class.
+            'callback' => [$this, 'getStatsHTML']
+        ));
+    }
+
+    public function getStatsHTML()
+    {
+        $this->stat_output_echo = false;
+        $stats = $this->indexStatistics();
+        echo $stats;
+        die();
     }
 }

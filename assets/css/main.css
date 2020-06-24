@@ -36,3 +36,9 @@ a.nav-tab:focus {
 .moj-es button.index_button {
     display:none
 }
+
+.moj-es-stats-index-notice {
+    margin-left: 0;
+    display: inline-block;
+    padding: 1px 30px 1px 12px;
+}
