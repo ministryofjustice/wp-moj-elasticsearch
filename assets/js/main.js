@@ -103,10 +103,12 @@ jQuery(function ($) {
             $.post(ajaxurl, {'action': 'stats_load'}, function (response) {
                 var json = $.parseJSON(response);
                 if (polling_num === 0 || json.changed === true) {
-                    $('#moj-es-indexing-stats')
-                        .html(json.stats)
-                        .find('#inner-indexing-stats')
-                        .fadeIn(600);
+                    if (json.stats) {
+                        $('#moj-es-indexing-stats')
+                            .html(json.stats)
+                            .find('#inner-indexing-stats')
+                            .animate({'opacity': 1},400);
+                    }
                 }
 
                 polling_num++;

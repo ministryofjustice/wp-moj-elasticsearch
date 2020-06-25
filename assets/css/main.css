@@ -55,6 +55,10 @@ a.nav-tab:focus {
     display: inline-block;
 }
 
+#inner-indexing-stats {
+    opacity:0;
+}
+
 @keyframes ldio-hokc2a6hk1r {
     0% {
         opacity: 1

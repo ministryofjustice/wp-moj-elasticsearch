@@ -12,8 +12,8 @@
  **/
 
 if (!defined('MOJ_ROOT_DIR')) {
-    header("HTTP/1.1 403 Forbidden");
-    return;
+    //header("HTTP/1.1 403 Forbidden");
+    //return;
 }
 
 // Load all our classes from PSR4 autoloader
@@ -21,7 +21,6 @@ require(MOJ_ROOT_DIR . '/vendor/autoload.php');
 
 use MOJElasticSearch\Admin;
 use MOJElasticSearch\Auth;
-use MOJElasticSearch\CliBulkIndex;
 use MOJElasticSearch\ElasticPressHooks;
 use MOJElasticSearch\Index;
 use MOJElasticSearch\ManageData;
@@ -31,7 +30,6 @@ if (new Auth) {
     new Admin;
     new SignAmazonEsRequests;
     new ElasticPressHooks;
-    new CliBulkIndex;
     new ManageData();
     new Index();
 }

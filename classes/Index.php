@@ -339,7 +339,7 @@ class Index extends Admin
                 </div>';
         }
 
-        $output .= '<ul id="inner-indexing-stats" style="display:none">';
+        $output .= '<ul id="inner-indexing-stats">';
         $total_files = '';
         $requests = '';
 
