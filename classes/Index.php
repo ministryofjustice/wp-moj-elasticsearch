@@ -2,11 +2,14 @@
 
 namespace MOJElasticSearch;
 
+use function ElasticPress\Utils\is_indexing;
+
 /**
  * Class Index
  * @package MOJElasticSearch
  * @SuppressWarnings("unused")
  * @SuppressWarnings(PHPMD.TooManyPublicMethods)
+ * @SuppressWarnings(PHPMD.ExitExpression)
  */
 class Index extends Admin
 {
@@ -15,6 +18,8 @@ class Index extends Admin
      * Include the Settings trait
      */
     use Settings, Debug;
+
+    private $stat_output_echo = true;
 
     public function __construct()
     {
@@ -26,7 +31,8 @@ class Index extends Admin
     {
         add_action('admin_menu', [$this, 'pageSettings'], 1);
         add_filter('ep_pre_request_url', [$this, 'request'], 11, 5);
-        add_action('ep_cli_Posts_bulk_index', [$this, 'cleanUpIndexing']);
+        add_action('moj_es_cron_hook', [$this, 'cleanUpIndexing']);
+        add_action('wp_ajax_stats_load', [$this, 'getStatsHTML']);
     }
 
     /**
@@ -44,6 +50,11 @@ class Index extends Admin
         remove_filter('ep_intercept_remote_request', [$this, 'interceptTrue']);
         remove_filter('ep_do_intercept_request', [$this, 'requestIntercept'], 11);
         remove_filter('ep_do_intercept_request', [$this, 'requestInterceptFalsy'], 11);
+
+        // schedule a task to clean up the index once it has finished
+        if (!wp_next_scheduled('moj_es_cron_hook')) {
+            wp_schedule_event(time(), 'one_minute', 'moj_es_cron_hook');
+        }
 
         $allow_methods = [
             'POST',
@@ -86,7 +97,7 @@ class Index extends Admin
         $stats = $this->getStats();
 
         // check the total size - no more than 9.7Mb
-        if (mb_strlen($args['body'], 'UTF-8') <= 9728000) {
+        if (mb_strlen($args['body'], 'UTF-8') <= self::EP_PAYLOAD_MAX) {
             // allow ElasticPress to index normally
             $stats['total_normal_requests']++;
             $this->setStats($stats);
@@ -111,8 +122,6 @@ class Index extends Admin
      */
     public function sendBulk($body)
     {
-        $min_byte_size = 5728000;
-        $max_byte_size = 8728000;
         $body_new_size = mb_strlen($body, 'UTF-8');
         $body_stored_size = 0;
 
@@ -121,14 +130,14 @@ class Index extends Admin
         }
 
         // payload maybe too big?
-        if ($body_stored_size + $body_new_size > $max_byte_size) {
+        if ($body_stored_size + $body_new_size > self::MOJ_PAYLOAD_MAX) {
             return false; // index individual file (normal)
         }
 
         // add body to bodies if not too big
         $this->writeBodyToFile($body);
 
-        if ($body_stored_size + $body_new_size > $min_byte_size) {
+        if ($body_stored_size + $body_new_size > self::MOJ_PAYLOAD_MIN) {
             // prepare interception
             add_filter('ep_intercept_remote_request', [$this, 'interceptTrue']);
             add_filter('ep_do_intercept_request', [$this, 'requestIntercept'], 11, 4);
@@ -162,9 +171,20 @@ class Index extends Admin
         $stats['total_real_requests']++;
         $this->setStats($stats);
 
+        $args['timeout'] = 60;
+
         unlink($this->importLocation() . 'moj-bulk-index-body.json');
 
-        return wp_remote_request($query['url'], $args);
+        $request = wp_remote_request($query['url'], $args);
+
+        // did the request work?
+        if (is_wp_error($request)) {
+            // sleep for 5 and try one more time...
+            sleep(5);
+            $request = wp_remote_request($query['url'], $args);
+        }
+
+        return $request;
     }
 
     public function requestInterceptFalsy($request, $query, $args, $failures)
@@ -192,19 +212,66 @@ class Index extends Admin
         );
     }
 
+    /**
+     * Method needed to remove_filter
+     * @return bool
+     */
     public function interceptTrue()
     {
         return true;
     }
 
-    public function interceptFalse()
-    {
-        return false;
-    }
-
+    /**
+     * @return bool
+     */
     public function cleanUpIndexing()
     {
-        // todo: make sure the 'moj-bulk-index-body.json' file isn't empty, if so, one last request and unlink it.
+        if (is_indexing()) {
+            return false;
+        }
+
+        $file_location = $this->importLocation() . 'moj-bulk-index-body.json';
+
+        if (file_exists($file_location)) {
+            if (filesize($file_location) > 0) {
+                // send last batch of posts to index
+                $stats = $this->getStats();
+                $url = $stats['last_url'] ?? null;
+                $args = $stats['last_args'] ?? null;
+                $args = (array)json_decode($args);
+                $stat_error = false;
+
+                if (!$url || !$args) {
+                    $stats['cleanup_error'] = 'Cleanup cannot run. URL or ARGS not available in stats array';
+                    $stat_error = true;
+                }
+
+                $this->requestIntercept(null, ['url' => $url], $args, null);
+
+                if (file_exists($file_location)) {
+                    $stats['cleanup_error'] = 'Bodies file still exists after sending last request';
+                    $stat_error = true;
+                }
+
+                if ($stat_error) {
+                    $this->setStats($stats);
+
+                    wp_mail(
+                        get_bloginfo('admin_email'),
+                        'Indexing errors have been found',
+                        $this->debug('Indexing Stats', $stats)
+                    );
+                }
+
+                $indexing_began_at = $this->options('indexing_began_at');
+
+                // now we are done, stop the cron hook from running:
+                $timestamp = wp_next_scheduled('moj_es_cron_hook');
+                wp_unschedule_event($timestamp, 'moj_es_cron_hook');
+
+                return true;
+            }
+        }
     }
 
     /**
@@ -212,22 +279,24 @@ class Index extends Admin
      *
      * Create your tab by adding to the $tabs global array with a label as the value
      * Configure a section with fields for that tab as arrays by adding to the $sections global array.
+     *
+     * @SuppressWarnings(PHPMD)
      */
     public function pageSettings()
     {
+        // define section (group) and tabs
         $group = 'indexing';
-
         Admin::$tabs[$group] = 'Indexing';
+
+        // define fields
+        $fields_index = [
+            'latest_stats' => [$this, 'indexStatistics'],
+            'refresh_index' => [$this, 'indexButton']
+        ];
+
+        // fill the sections
         Admin::$sections[$group] = [
-            [
-                'id' => 'index_stats',
-                'title' => 'Latest indexing stats',
-                'callback' => [$this, 'indexStatsIntro'],
-                'fields' => [
-                    'stats' => ['title' => 'Index Statistics', 'callback' => [$this, 'indexStatistics']],
-                    'index_button' => ['title' => 'Index Now?', 'callback' => [$this, 'indexButton']]
-                ]
-            ]
+            $this->section([$this, 'indexStatisticsIntro'], $fields_index)
         ];
 
         $this->createSections($group);
@@ -235,11 +304,49 @@ class Index extends Admin
 
     public function indexStatistics()
     {
-        echo '<ul>';
+        echo '<div id="moj-es-indexing-stats">
+                <div class="loadingio-spinner-spinner-qniwaf77spg">
+                <div class="ldio-hokc2a6hk1r">
+                <div></div><div></div><div></div><div></div><div></div><div></div>
+                <div></div><div></div><div></div><div></div><div></div><div></div>
+                </div></div></div>
+                <div id="my-kill-content-id" style="display:none;">
+                        <p>
+                            You are about to kill a running indexing process. If you are unsure, exit
+                            out of this box by clicking away from this modal.<br><strong>Please confirm:</strong>
+                        </p>
+                        <a class="button-primary kill_index_pre_link" title="Are you sure?">
+                            Yes, let\'s kill this... GO!
+                        </a>
+                    </div>';
+    }
+
+    public function indexStatisticsAjax()
+    {
+        $output = '';
+        if (is_indexing()) {
+            $output .= '<div class="notice notice-warning moj-es-stats-index-notice">
+                    <p><strong>Indexing is currently active</strong>
+                    <button name="moj_es_settings[index_kill]" value="1" class="button-primary kill_index_button"
+                        disabled="disabled">
+                        Stop Indexing
+                    </button>
+                    <a href="#TB_inline?&width=400&height=150&inlineId=my-kill-content-id"
+                        class="button-primary kill_index_button thickbox"
+                        title="Kill Elasticsearch Indexing">
+                        Stop Indexing
+                    </a></p>
+                </div>';
+        }
+
+        $output .= '<ul id="inner-indexing-stats" style="display:none">';
         $total_files = '';
         $requests = '';
 
         foreach ($this->getStats() as $key => $stat) {
+            if (strpos($key, 'last_') > -1) {
+                continue;
+            }
             if ($key === 'large_files') {
                 $large_file_count = count($stat);
                 $total_files = '<li>Large posts (skipped): we have found <strong>' .
@@ -251,7 +358,9 @@ class Index extends Admin
                     $total_files .= '<ol>';
 
                     foreach ($stat as $pid) {
-                        $link = '<a href="/wp/wp-admin/post.php?post=' . $pid . '&action=edit">' . $pid . '</a>';
+                        $link = '<a href="/wp/wp-admin/post.php?post=' .
+                            $pid->index->_id . '&action=edit" target="_blank">' .
+                            $pid->index->_id . '</a>';
                         $total_files .= '<li><strong>' . $link . '</strong></li>';
                     }
 
@@ -265,12 +374,15 @@ class Index extends Admin
             }
         }
 
-        echo $requests;
-        echo $total_files;
-        echo '</ul>';
+        $output .= $requests;
+        $output .= $total_files;
+        $output .= '</ul>';
+
+
+        return $output;
     }
 
-    public function indexStatsIntro()
+    public function indexStatisticsIntro()
     {
         $heading = __('View the results from the latest index', $this->text_domain);
 
@@ -304,5 +416,30 @@ class Index extends Admin
         </a>
         <p><?= $description ?></p>
         <?php
+    }
+
+    public function getStatsHTML()
+    {
+        $stats = $this->indexStatisticsAjax();
+
+        $cached_stats = get_option('_moj_es_cached_stats', '');
+        $hashed_stats = md5($stats);
+
+        // cover first ever run...
+        if ($cached_stats === '') {
+            update_option('_moj_es_cached_stats', $hashed_stats);
+        }
+
+        $changed = false;
+        if ($hashed_stats !== $cached_stats) {
+            $changed = true;
+            update_option('_moj_es_cached_stats', $hashed_stats);
+        }
+
+        $send['stats'] = $stats;
+        $send['changed'] = $changed;
+
+        echo json_encode($send);
+        die();
     }
 }

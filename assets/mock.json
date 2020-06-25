@@ -5,9 +5,9 @@
     "items": [
         {
             "index": {
-                "_index": "intranetdockerwp-post-1",
+                "_index": "my-index",
                 "_type": "_doc",
-                "_id": "239312",
+                "_id": "12345",
                 "_version": 9,
                 "result": "updated",
                 "_shards": {
