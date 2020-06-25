@@ -104,10 +104,7 @@ jQuery(function ($) {
                 var json = $.parseJSON(response);
                 if (polling_num === 0 || json.changed === true) {
                     if (json.stats) {
-                        $('#moj-es-indexing-stats')
-                            .html(json.stats)
-                            .find('#inner-indexing-stats')
-                            .animate({'opacity': 1},400);
+                        $('#moj-es-indexing-stats').html(json.stats);
                     }
                 }
 
