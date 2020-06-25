@@ -31,18 +31,19 @@ class ManageData extends Admin
      */
     public function pageSettings()
     {
+        // define section (group) and tabs
         $group = 'manage_data';
         Admin::$tabs[$group] = 'EP Configurations';
+
+        // define fields
+        $fields_weights = [
+            'choose_a_file' => [$this, 'importEPWeights'],
+            'current_weights' => [$this, 'outputCurrentWeights']
+        ];
+
+        // fill the sections
         Admin::$sections[$group] = [
-            [
-                'id' => 'weighting_data_section',
-                'title' => 'Weighting',
-                'callback' => [$this, 'manageWeightingIntro'],
-                'fields' => [
-                    'weighting-import' => ['title' => 'Choose a file:', 'callback' => [$this, 'importEPWeights']],
-                    'weighting-export' => ['title' => 'Current Weights', 'callback' => [$this, 'outputCurrentWeights']]
-                ]
-            ]
+            $this->section([$this, 'manageWeightingIntro'], $fields_weights)
         ];
 
         $this->createSections($group);

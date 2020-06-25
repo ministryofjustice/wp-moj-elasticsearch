@@ -5,33 +5,15 @@
 
 namespace MOJElasticSearch;
 
+use function ElasticPress\Utils\is_indexing;
+
 trait Settings
 {
-    public $settings_registered = false;
-
-    /**
-     * Registers a setting when createSections() is called first time
-     * The register call is singular for the whole plugin
-     */
-    public function register()
-    {
-        if (!$this->settings_registered) {
-            register_setting(
-                $this->optionGroup(),
-                $this->optionName(),
-                ['sanitize_callback' => ['MOJElasticSearch\Admin', 'sanitizeSettings']]
-            );
-            $this->settings_registered = true;
-        }
-    }
-
     public function createSections($group)
     {
         if (empty($group) || !isset(Admin::$sections[$group]) || !is_array(Admin::$sections[$group])) {
             return;
         }
-
-        $this->register();
 
         foreach (Admin::$sections[$group] as $section) {
             add_settings_section(

@@ -58,7 +58,7 @@ jQuery(function ($) {
     }
 
     // only run JS on our settings page
-    if ($('.settings_page_moj-es').length > 0) {
+    if ($('.moj-es').length > 0) {
         $('.nav-tab-wrapper').on('click', 'a', function (e) {
             e.preventDefault()
 
@@ -74,35 +74,51 @@ jQuery(function ($) {
         } else {
             setTab()
         }
-    }
 
-    function startBulkIndex () {
-        $('.moj-es a.thickbox').hide()
-        $('.moj-es button.index_button').show().attr('disabled', null).click()
-    }
-
-    // listen for click of index_pre_link
-    $('.moj-es a.index_pre_link').on('click', startBulkIndex)
-
-    var max_polling = 0;
-    function get_stats() {
-        if (!statInterval) {
-            statInterval = setInterval(get_stats, 4000);
+        function startBulkIndex () {
+            $('.moj-es a.thickbox').hide();
+            $('.moj-es button.index_button').show().attr('disabled', null).click();
         }
-        //alert(ajaxurl);
-        jQuery.post(ajaxurl, {'action': 'stats_load'}, function (response) {
-            if (response) {
-                jQuery('#moj-es-indexing-stats').html(response);
-                max_polling++;
-                if (max_polling > 10) {
+
+        function killBulkIndex () {
+            $('.moj-es a.thickbox.kill_index_button').hide();
+            $('.moj-es button.kill_index_button').show().attr('disabled', null).click();
+        }
+
+        // listen for click of index_pre_link
+        $('.moj-es a.index_pre_link').on('click', startBulkIndex);
+        $('a.kill_index_pre_link').on('click', killBulkIndex);
+
+
+
+        var polling_num = 0;
+        var statInterval = null;
+        // self-executing function; get latest stats
+        (function get_stats() {
+            if (!statInterval) {
+                // set intervals; 3 every 10 seconds
+                statInterval = setInterval(get_stats, 3335);
+            }
+
+            $.post(ajaxurl, {'action': 'stats_load'}, function (response) {
+                var json = $.parseJSON(response);
+                if (polling_num === 0 || json.changed === true) {
+                    $('#moj-es-indexing-stats')
+                        .html(json.stats)
+                        .find('#inner-indexing-stats')
+                        .fadeIn(600);
+                }
+
+                polling_num++;
+                if (polling_num > 15) {
                     clearInterval(statInterval);
                     statInterval = null;
-                    max_polling = 0;
+                    polling_num = 1;
                     setTimeout(get_stats, 20000);
                 }
-            }
-        });
-    }
+            });
+        })();
 
-    var statInterval = setInterval(get_stats, 4000);
+        $('#wpbody-content > div[id^="setting-error-"]').remove();
+    }
 })
