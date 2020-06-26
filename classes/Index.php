@@ -94,7 +94,6 @@ class Index extends Admin
             return $request;
         }
 
-        $stats = $this->getStats();
 
         // check the total size - no more than 9.7Mb
         if (mb_strlen($args['body'], 'UTF-8') <= self::EP_PAYLOAD_MAX) {
@@ -122,12 +121,16 @@ class Index extends Admin
      */
     public function sendBulk($body)
     {
+        $stats = $this->getStats();
         $body_new_size = mb_strlen($body, 'UTF-8');
         $body_stored_size = 0;
 
         if (file_exists($this->importLocation() . 'moj-bulk-index-body.json')) {
-            $body_stored_size = filesize($this->importLocation() . 'moj-bulk-index-body.json');
+            $body_stored_size = mb_strlen(
+                file_get_contents($this->importLocation() . 'moj-bulk-index-body.json')
+            );
         }
+        $stats['bulk_body_size'] = $this->humanFileSize($body_stored_size);
 
         // payload maybe too big?
         if ($body_stored_size + $body_new_size > self::MOJ_PAYLOAD_MAX) {
@@ -136,6 +139,9 @@ class Index extends Admin
 
         // add body to bodies if not too big
         $this->writeBodyToFile($body);
+
+        $this->setStats($stats);
+
 
         if ($body_stored_size + $body_new_size > self::MOJ_PAYLOAD_MIN) {
             // prepare interception
@@ -160,6 +166,8 @@ class Index extends Admin
         $handle = fopen($path, 'a');
         fwrite($handle, trim($body) . "\n");
         fclose($handle);
+
+        return mb_strlen(file_get_contents($path));
     }
 
     public function requestIntercept($request, $query, $args, $failures)

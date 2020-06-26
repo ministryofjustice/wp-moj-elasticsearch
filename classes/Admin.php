@@ -206,7 +206,6 @@ class Admin
         // catch Bulk index action
         if (isset($options['index_button'])) {
             if (is_indexing()) {
-                $this->checkPid();
                 self::settingNotice(
                     'The index cannot be refreshed until the current cycle has completed.',
                     'bulk-warning',
@@ -215,17 +214,12 @@ class Admin
                 return $options;
             }
 
-            /*$options['indexing_began_at'] = time();
-            exec("wp elasticpress index --setup --per-page=1 --allow-root > /dev/null &");*/
-            $this->clearStats();
             $options['indexing_began_at'] = time();
             $process_id = exec(
                 "wp elasticpress index --setup --per-page=1 --allow-root > /dev/null 2>&1 & echo $!;"
             );
-            update_option('_moj_es_indexing_pid', $process_id);
             $this->clearStats();
-
-            self::settingNotice('Bulk index has started', 'bulk-warning', 'warning');
+            self::settingNotice('Bulk indexing has started', 'bulk-warning', 'success');
         }
 
         // catch Bulk index action kill
@@ -247,7 +241,7 @@ class Admin
             $message = 'Please investigate the cause further in a terminal, we could not determine the process ID';
             $process_id = exec('pgrep -u root php$');
             if ($process_id) {
-                $message = 'Was the index started in a terminal window? A root process ID was found: ' . $process_id;
+                $message = 'Was the index started in a terminal? A root process ID was found: ' . $process_id;
             }
             self::settingNotice(
                 'Killing the index process has failed.<br>' . $message,
@@ -329,15 +323,6 @@ class Admin
         );
     }
 
-    private function checkPid()
-    {
-        $process_id = get_option('_moj_es_indexing_pid', null);
-        if ($process_id) {
-            $command_detail = exec("lsof -p $process_id");
-            update_option('_moj_es_pid_details', $command_detail);
-        }
-    }
-
     /**
      * Simple wrapper to fetch the plugins data array
      * @param $key [string]
@@ -380,7 +365,7 @@ class Admin
      */
     public function importLocation()
     {
-        $file_dir = wp_get_upload_dir()['basedir'] . DIRECTORY_SEPARATOR;
+        $file_dir = get_temp_dir();
         return $file_dir . basename(plugin_dir_path(dirname(__FILE__, 1))) . DIRECTORY_SEPARATOR;
     }
 
@@ -454,5 +439,22 @@ class Admin
         }
 
         return rtrim($string);
+    }
+
+    public function humanFileSize($size, $unit = "")
+    {
+        if ((!$unit && $size >= 1 << 30) || $unit == "GB") {
+            return number_format($size / (1 << 30), 2) . "GB";
+        }
+
+        if ((!$unit && $size >= 1 << 20) || $unit == "MB") {
+            return number_format($size / (1 << 20), 2) . "MB";
+        }
+
+        if ((!$unit && $size >= 1 << 10) || $unit == "KB") {
+            return number_format($size / (1 << 10), 2) . "KB";
+        }
+
+        return number_format($size) . " bytes";
     }
 }

@@ -11,11 +11,6 @@
  *
  **/
 
-if (!defined('MOJ_ROOT_DIR')) {
-    //header("HTTP/1.1 403 Forbidden");
-    //return;
-}
-
 // Load all our classes from PSR4 autoloader
 require(MOJ_ROOT_DIR . '/vendor/autoload.php');
 
