@@ -369,8 +369,19 @@ class Admin
         return $file_dir . basename(plugin_dir_path(dirname(__FILE__, 1))) . DIRECTORY_SEPARATOR;
     }
 
+    /**
+     * Get the stats stored from
+     * @param string $key
+     * @return array|string|null
+     */
     public function getStats($key = '')
     {
+        if (wp_doing_ajax()) {
+            // the following is a php function. Stat has a different meaning (: immediate) in this context
+            // https://www.php.net/manual/en/function.clearstatcache.php
+            clearstatcache();
+        }
+
         if (!file_exists($this->importLocation() . 'moj-bulk-index-stats.json')) {
             self::setStats([
                 'total_real_requests' => 0,
