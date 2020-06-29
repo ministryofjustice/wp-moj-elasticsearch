@@ -379,7 +379,7 @@ class Admin
         if (wp_doing_ajax()) {
             // the following is a php function. Stat has a different meaning (: immediate) in this context
             // https://www.php.net/manual/en/function.clearstatcache.php
-            clearstatcache();
+            clearstatcache(true, $this->importLocation() . 'moj-bulk-index-stats.json');
         }
 
         if (!file_exists($this->importLocation() . 'moj-bulk-index-stats.json')) {
