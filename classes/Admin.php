@@ -452,20 +452,16 @@ class Admin
         return rtrim($string);
     }
 
-    public function humanFileSize($size, $unit = "")
+    public function humanFileSize($size)
     {
-        if ((!$unit && $size >= 1 << 30) || $unit == "GB") {
-            return number_format($size / (1 << 30), 2) . "GB";
+        $bit_sizes = ['KB' => 10, 'MB' => 20, 'GB' => 30];
+        $file_size = '';
+        foreach ($bit_sizes as $unit => $bit_size) {
+            if ($size >= 1 << $bit_size) {
+                $file_size = number_format($size / (1 << $bit_size), 2) . $unit;
+                break;
+            }
         }
-
-        if ((!$unit && $size >= 1 << 20) || $unit == "MB") {
-            return number_format($size / (1 << 20), 2) . "MB";
-        }
-
-        if ((!$unit && $size >= 1 << 10) || $unit == "KB") {
-            return number_format($size / (1 << 10), 2) . "KB";
-        }
-
-        return number_format($size) . " bytes";
+        return $file_size;
     }
 }
