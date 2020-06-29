@@ -452,7 +452,12 @@ class Admin
         return rtrim($string);
     }
 
-    public function humanFileSize($size)
+    /**
+     * Calculate a human readable files size
+     * @param $size
+     * @return string
+     */
+    public function humanFileSize($size): string
     {
         $bit_sizes = ['KB' => 10, 'MB' => 20, 'GB' => 30];
         $file_size = '0 bytes';
@@ -462,6 +467,7 @@ class Admin
                 break;
             }
         }
+
         return $file_size;
     }
 }
