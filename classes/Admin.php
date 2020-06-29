@@ -459,7 +459,7 @@ class Admin
      */
     public function humanFileSize($size): string
     {
-        $bit_sizes = ['KB' => 10, 'MB' => 20, 'GB' => 30];
+        $bit_sizes = ['GB' => 30, 'MB' => 20, 'KB' => 10]; // order is important
         $file_size = '0 bytes';
         foreach ($bit_sizes as $unit => $bit_size) {
             if ($size >= 1 << $bit_size) {
