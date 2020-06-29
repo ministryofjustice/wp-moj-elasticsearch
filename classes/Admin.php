@@ -369,8 +369,19 @@ class Admin
         return $file_dir . basename(plugin_dir_path(dirname(__FILE__, 1))) . DIRECTORY_SEPARATOR;
     }
 
+    /**
+     * Get the stats stored from
+     * @param string $key
+     * @return array|string|null
+     */
     public function getStats($key = '')
     {
+        if (wp_doing_ajax()) {
+            // the following is a php function. Stat has a different meaning (: immediate) in this context
+            // https://www.php.net/manual/en/function.clearstatcache.php
+            clearstatcache(true, $this->importLocation() . 'moj-bulk-index-stats.json');
+        }
+
         if (!file_exists($this->importLocation() . 'moj-bulk-index-stats.json')) {
             self::setStats([
                 'total_real_requests' => 0,
@@ -441,20 +452,22 @@ class Admin
         return rtrim($string);
     }
 
-    public function humanFileSize($size, $unit = "")
+    /**
+     * Calculate a human readable files size
+     * @param $size
+     * @return string
+     */
+    public function humanFileSize($size): string
     {
-        if ((!$unit && $size >= 1 << 30) || $unit == "GB") {
-            return number_format($size / (1 << 30), 2) . "GB";
+        $bit_sizes = ['KB' => 10, 'MB' => 20, 'GB' => 30];
+        $file_size = '0 bytes';
+        foreach ($bit_sizes as $unit => $bit_size) {
+            if ($size >= 1 << $bit_size) {
+                $file_size = number_format($size / (1 << $bit_size), 2) . $unit;
+                break;
+            }
         }
 
-        if ((!$unit && $size >= 1 << 20) || $unit == "MB") {
-            return number_format($size / (1 << 20), 2) . "MB";
-        }
-
-        if ((!$unit && $size >= 1 << 10) || $unit == "KB") {
-            return number_format($size / (1 << 10), 2) . "KB";
-        }
-
-        return number_format($size) . " bytes";
+        return $file_size;
     }
 }
