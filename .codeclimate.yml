@@ -3,23 +3,23 @@ checks:
   argument-count:
     enabled: true
     config:
-      threshold: 4
+      threshold: 6
   complex-logic:
     enabled: true
     config:
-      threshold: 4
+      threshold: 6
   file-lines:
     enabled: true
     config:
-      threshold: 250
+      threshold: 400
   method-complexity:
     enabled: true
     config:
-      threshold: 10
+      threshold: 20
   method-count:
     enabled: true
     config:
-      threshold: 20
+      threshold: 25
   method-lines:
     enabled: true
     config:
@@ -35,7 +35,7 @@ checks:
   similar-code:
     enabled: true
     config:
-      threshold: 80
+      threshold: 90
   identical-code:
     enabled: true
     config:
@@ -49,5 +49,7 @@ plugins:
       enabled: true
       config:
           rulesets: "cleancode,codesize,design,naming,unusedcode"
+  eslint:
+      enabled: true
 exclude_patterns:
 - "vendor/"

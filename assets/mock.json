@@ -1,0 +1,24 @@
+{
+    "took": 8,
+    "ingest_took": 0,
+    "errors": false,
+    "items": [
+        {
+            "index": {
+                "_index": "my-index",
+                "_type": "_doc",
+                "_id": "12345",
+                "_version": 9,
+                "result": "updated",
+                "_shards": {
+                    "total": 2,
+                    "successful": 2,
+                    "failed": 0
+                },
+                "_seq_no": 9,
+                "_primary_term": 1,
+                "status": 200
+            }
+        }
+    ]
+}
