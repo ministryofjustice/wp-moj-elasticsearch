@@ -8,6 +8,13 @@
 
 namespace MOJElasticSearch;
 
+use function ElasticPress\Utils\is_indexing;
+
+/**
+ * Class Admin
+ * @package MOJElasticSearch
+ * @SuppressWarnings(PHPMD.TooManyPublicMethods)
+ */
 class Admin
 {
     use Debug;
@@ -18,6 +25,23 @@ class Admin
     public $text_domain = 'wp-moj-elasticsearch';
     public static $tabs = [];
     public static $sections = [];
+    public $settings_registered = false;
+
+    /**
+     * The minimum payload size we create before sending to ES
+     * @var int size in bytes
+     */
+    const MOJ_PAYLOAD_MIN = 5728000;
+    /**
+     * The maximum we allow for a custom created payload file
+     * @var int size in bytes
+     */
+    const MOJ_PAYLOAD_MAX = 8728000;
+    /**
+     * The absolute maximum for any single payload request
+     * @var int size in bytes
+     */
+    const EP_PAYLOAD_MAX = 9728000;
 
     public function __construct()
     {
@@ -28,6 +52,10 @@ class Admin
     {
         add_action('admin_enqueue_scripts', [$this, 'enqueue']);
         add_action('admin_menu', [$this, 'settingsPage']);
+        add_action('ep_dashboard_start_index', [$this, 'clearStats']);
+        add_action('ep_wp_cli_pre_index', [$this, 'clearStats']);
+        add_filter('cron_schedules', [$this, 'addCronIntervals']);
+        add_action('admin_init', [$this, 'register']);
     }
 
     public function enqueue()
@@ -38,6 +66,23 @@ class Admin
             plugins_url('../', __FILE__) . 'assets/js/main.js',
             ['jquery']
         );
+        wp_localize_script('moj-es-js', 'moj_js_object', array('ajaxurl' => admin_url('admin-ajax.php')));
+    }
+
+    /**
+     * Registers a setting when createSections() is called first time
+     * The register call is singular for the whole plugin
+     */
+    public function register()
+    {
+        if (!$this->settings_registered) {
+            register_setting(
+                $this->optionGroup(),
+                $this->optionName(),
+                ['sanitize_callback' => [$this, 'sanitizeSettings']]
+            );
+            $this->settings_registered = true;
+        }
     }
 
     public function settingsPage()
@@ -64,6 +109,8 @@ class Admin
         $title = __('MoJ ES', $this->text_domain);
         $title_admin = __('Extending the functionality of the ElasticPress plugin', $this->text_domain);
         echo '<h1>' . $title . ' <small class="sub-title">.' . $title_admin . '</small></h1>';
+
+        settings_errors();
 
         // output tab buttons
         $this->tabs();
@@ -121,89 +168,88 @@ class Admin
     }
 
     /**
+     * @param $section_callback array callback in array format [$this, 'mySectionIntroCallback']
+     * @param $fields array of callbacks in array format with keys ['my_field_title' => [$this, 'myFieldCallback']]
+     * @return array
+     */
+    public function section($section_callback, $fields): array
+    {
+        $structured_fields = [];
+        foreach ($fields as $field_id => $field_callback) {
+            $structured_fields[$field_id] = [
+                'title' => ucwords(str_replace(['-', '_'], ' ', $field_id)),
+                'callback' => $field_callback
+            ];
+        }
+
+        return [
+            'id' => strtolower($section_callback[1]),
+            'title' => ucwords(str_replace('Intro', '', $this->camelCaseToWords($section_callback[1]))),
+            'callback' => $section_callback,
+            'fields' => $structured_fields
+        ];
+    }
+
+    /**
      * Intercepts when saving settings so we can sanitize, validate or manage file uploads.
      *
      * @param array $options
      * @return array
      */
-    public static function sanitizeSettings(array $options)
+    public function sanitizeSettings(array $options)
     {
         // catch manage_data; upload weightings
         if (!empty($_FILES["weighting-import"]["tmp_name"])) {
             self::weightingUploadHandler();
         }
 
-        // catch Kinesis index action
+        // catch Bulk index action
         if (isset($options['index_button'])) {
-            // start indexing kinesis here
-            self::settingNotice('We made it here but you cannot index via Kinesis yet!', 'bulk-error');
+            if (is_indexing()) {
+                self::settingNotice(
+                    'The index cannot be refreshed until the current cycle has completed.',
+                    'bulk-warning',
+                    'warning'
+                );
+                return $options;
+            }
+
+            $options['indexing_began_at'] = time();
+            $process_id = exec(
+                "wp elasticpress index --setup --per-page=1 --allow-root > /dev/null 2>&1 & echo $!;"
+            );
+            $this->clearStats();
+            self::settingNotice('Bulk indexing has started', 'bulk-warning', 'success');
         }
 
-        // catch keys unlock requests and reset lock
-        // force lock any other time
-        $options['access_keys_lock'] = 'yes';
-        if (isset($options['access_keys_unlock']) && $options['access_keys_unlock'] === 'update keys') {
-            self::settingNotice('Access keys are now unlocked.', 'access-error', 'warning');
-            $options['access_keys_lock'] = null;
-        }
+        // catch Bulk index action kill
+        if (isset($options['index_kill'])) {
+            $process_id = exec('pgrep -u www-data php$');
+            if ($process_id > 0) {
+                if (posix_kill($process_id, 9)) {
+                    delete_transient('ep_wpcli_sync');
+                    self::settingNotice(
+                        'Done. The indexing process has been stopped',
+                        'kill-success',
+                        'success'
+                    );
 
-        if (isset($options['access_keys_unlock']) && !empty($options['access_keys_unlock']) &&
-            $options['access_keys_unlock'] !== 'update keys') {
+                    return $options;
+                }
+            }
+
+            $message = 'Please investigate the cause further in a terminal, we could not determine the process ID';
+            $process_id = exec('pgrep -u root php$');
+            if ($process_id) {
+                $message = 'Was the index started in a terminal? A root process ID was found: ' . $process_id;
+            }
             self::settingNotice(
-                'Please enter a valid phrase to edit access keys',
-                'access-error',
-                'info'
+                'Killing the index process has failed.<br>' . $message,
+                'bulk-warning'
             );
         }
-        // holds the pass phrase, reset always
-        $options['access_keys_unlock'] = null;
 
         return $options;
-    }
-
-    /**
-     * Simple wrapper to fetch the plugins data array
-     * @return mixed|void
-     * @uses get_option()
-     */
-    public function options()
-    {
-        return get_option($this->optionName(), []);
-    }
-
-    /**
-     * Get the option group for the plugin settings. Used as 'page' in register_settings()
-     * @return string
-     */
-    public function optionGroup()
-    {
-        return $this->prefix . $this->option_group;
-    }
-
-    /**
-     * The settings name for our plugins option data.
-     * Calling get_option() with this string will produce the plugins data.
-     * @return string
-     */
-    public function optionName()
-    {
-        return $this->prefix . $this->option_name;
-    }
-
-    /**
-     * Creates a new notice to be presented to the user. Used to pass information about the current process.
-     * @param $notice
-     * @param $code
-     * @param string $type
-     */
-    public static function settingNotice($notice, $code, $type = 'error')
-    {
-        add_settings_error(
-            'moj_es_settings',
-            'moj-es' . $code,
-            __($notice, 'wp-moj-elasticsearch'),
-            $type
-        );
     }
 
     /**
@@ -262,12 +308,166 @@ class Admin
     }
 
     /**
+     * Creates a new notice to be presented to the user. Used to pass information about the current process.
+     * @param $notice
+     * @param $code
+     * @param string $type
+     */
+    private static function settingNotice($notice, $code, $type = 'error')
+    {
+        add_settings_error(
+            'moj_es_settings',
+            'moj-es' . $code,
+            __($notice, 'wp-moj-elasticsearch'),
+            $type
+        );
+    }
+
+    /**
+     * Simple wrapper to fetch the plugins data array
+     * @param $key [string]
+     * @return mixed|void
+     * @uses get_option()
+     */
+    public function options($key = '')
+    {
+        $options = get_option($this->optionName(), []);
+
+        if (!empty($key)) {
+            return $options[$key] ?? null;
+        }
+
+        return $options;
+    }
+
+    /**
+     * Get the option group for the plugin settings. Used as 'page' in register_settings()
+     * @return string
+     */
+    public function optionGroup()
+    {
+        return $this->prefix . $this->option_group;
+    }
+
+    /**
+     * The settings name for our plugins option data.
+     * Calling get_option() with this string will produce the plugins data.
+     * @return string
+     */
+    public function optionName()
+    {
+        return $this->prefix . $this->option_name;
+    }
+
+    /**
      * Defines the import data location in the uploads directory.
      * @return string
      */
-    public static function importLocation()
+    public function importLocation()
     {
-        $file_dir = wp_get_upload_dir()['basedir'] . DIRECTORY_SEPARATOR;
+        $file_dir = get_temp_dir();
         return $file_dir . basename(plugin_dir_path(dirname(__FILE__, 1))) . DIRECTORY_SEPARATOR;
+    }
+
+    /**
+     * Get the stats stored from
+     * @param string $key
+     * @return array|string|null
+     */
+    public function getStats($key = '')
+    {
+        if (wp_doing_ajax()) {
+            // the following is a php function. Stat has a different meaning (: immediate) in this context
+            // https://www.php.net/manual/en/function.clearstatcache.php
+            clearstatcache(true, $this->importLocation() . 'moj-bulk-index-stats.json');
+        }
+
+        if (!file_exists($this->importLocation() . 'moj-bulk-index-stats.json')) {
+            self::setStats([
+                'total_real_requests' => 0,
+                'total_mock_requests' => 0,
+                'total_normal_requests' => 0,
+                'total_large_requests' => 0,
+                'large_files' => [],
+            ]);
+        }
+
+        $stats = (array)json_decode(file_get_contents($this->importLocation() . 'moj-bulk-index-stats.json'));
+
+        if (!empty($key)) {
+            return $stats[$key] ?? null;
+        }
+
+        return $stats;
+    }
+
+    public function setStats($es_stats)
+    {
+        $handle = fopen($this->importLocation() . 'moj-bulk-index-stats.json', 'w');
+        fwrite($handle, json_encode($es_stats));
+        fclose($handle);
+    }
+
+    public function clearStats()
+    {
+        unlink($this->importLocation() . 'moj-bulk-index-stats.json');
+    }
+
+    /**
+     * @param $schedules
+     * @return array
+     */
+    public function addCronIntervals($schedules): array
+    {
+        $schedules['five_seconds'] = [
+            'interval' => 5,
+            'display' => esc_html__('Every 5 seconds')
+        ];
+
+        $schedules['one_minute'] = [
+            'interval' => 60,
+            'display' => esc_html__('Every Minute')
+        ];
+
+        return $schedules;
+    }
+
+    public function camelCaseToWords($string)
+    {
+        $regex = '/
+              (?<=[a-z])      # Position is after a lowercase,
+              (?=[A-Z])       # and before an uppercase letter.
+            | (?<=[A-Z])      # Or g2of2; Position is after uppercase,
+              (?=[A-Z][a-z])  # and before upper-then-lower case.
+            /x';
+        $words = preg_split($regex, $string);
+        $count = count($words);
+        if (is_array($words)) {
+            $string = '';
+            for ($i = 0; $i < $count; ++$i) {
+                $string .= $words[$i] . " ";
+            }
+        }
+
+        return rtrim($string);
+    }
+
+    /**
+     * Calculate a human readable files size
+     * @param $size
+     * @return string
+     */
+    public function humanFileSize($size): string
+    {
+        $bit_sizes = ['GB' => 30, 'MB' => 20, 'KB' => 10]; // order is important
+        $file_size = '0 bytes';
+        foreach ($bit_sizes as $unit => $bit_size) {
+            if ($size >= 1 << $bit_size) {
+                $file_size = number_format($size / (1 << $bit_size), 2) . $unit;
+                break;
+            }
+        }
+
+        return $file_size;
     }
 }

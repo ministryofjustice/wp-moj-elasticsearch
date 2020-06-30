@@ -11,7 +11,6 @@ use MOJElasticSearch\Admin;
 
 class ElasticSearch
 {
-    use FireHoseConnect;
     use Debug;
 
     public function __construct()
