@@ -31,7 +31,7 @@ class Admin
      * The minimum payload size we create before sending to ES
      * @var int size in bytes
      */
-    const MOJ_PAYLOAD_MIN = 5728000;
+    const MOJ_PAYLOAD_MIN = 6000000;
     /**
      * The maximum we allow for a custom created payload file
      * @var int size in bytes
@@ -378,10 +378,10 @@ class Admin
     {
         if (!file_exists($this->importLocation() . 'moj-bulk-index-stats.json')) {
             self::setStats([
-                'total_real_requests' => 0,
-                'total_mock_requests' => 0,
-                'total_normal_requests' => 0,
+                'total_bulk_requests' => 0,
+                'total_stored_requests' => 0,
                 'total_large_requests' => 0,
+                'bulk_body_size' => 0,
                 'large_files' => [],
             ]);
         }

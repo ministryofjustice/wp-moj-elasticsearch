@@ -94,11 +94,12 @@ class Index extends Admin
             return $request;
         }
 
+        $stats = $this->getStats();
 
         // check the total size - no more than 9.7Mb
         if (mb_strlen($args['body'], 'UTF-8') <= self::EP_PAYLOAD_MAX) {
             // allow ElasticPress to index normally
-            $stats['total_normal_requests']++;
+            $stats['total_large_requests']++;
             $this->setStats($stats);
             return $request;
         }
@@ -115,7 +116,6 @@ class Index extends Admin
     }
 
     /**
-     * @param $bodies
      * @param $body
      * @return bool
      */
@@ -130,6 +130,7 @@ class Index extends Admin
                 file_get_contents($this->importLocation() . 'moj-bulk-index-body.json')
             );
         }
+
         $stats['bulk_body_size'] = $this->humanFileSize($body_stored_size);
 
         // payload maybe too big?
@@ -175,8 +176,9 @@ class Index extends Admin
         $args['body'] = file_get_contents($this->importLocation() . 'moj-bulk-index-body.json');
 
         $stats = $this->getStats();
-        $stats['total_real_requests'] = $stats['total_real_requests'] ?? 0;
-        $stats['total_real_requests']++;
+        $stats['total_bulk_requests'] = $stats['total_bulk_requests'] ?? 0;
+        $stats['total_bulk_requests']++;
+        $stats['bulk_body_size'] = 0;
         $this->setStats($stats);
 
         $args['timeout'] = 60;
@@ -198,8 +200,8 @@ class Index extends Admin
     public function requestInterceptFalsy($request, $query, $args, $failures)
     {
         $stats = $this->getStats();
-        $stats['total_mock_requests'] = $stats['total_mock_requests'] ?? 0;
-        $stats['total_mock_requests']++;
+        $stats['total_stored_requests'] = $stats['total_stored_requests'] ?? 0;
+        $stats['total_stored_requests']++;
         $stats['last_url'] = $query['url'];
 
         // remove body from overall payload for reporting
@@ -379,7 +381,9 @@ class Index extends Admin
 
             if ($key !== 'large_files') {
                 $requests .= '<li>' .
-                    ucwords(str_replace(['total', '_'], ['', ' '], $key)) . ': <strong>' . $stat . '</strong></li>';
+                    ucwords(
+                        str_replace(['total', '_'], ['', ' '], $key)
+                    ) . ': <strong>' . $stat . '</strong>' . $this->maybeBulkBodyFormat($key) . '</li>';
             }
         }
 
@@ -389,6 +393,11 @@ class Index extends Admin
 
 
         return $output;
+    }
+
+    private function maybeBulkBodyFormat($key)
+    {
+        return $key === 'bulk_body_size' ? ' / ' . $this->humanFileSize(self::MOJ_PAYLOAD_MIN) : '';
     }
 
     public function indexStatisticsIntro()
@@ -444,24 +453,11 @@ class Index extends Admin
     {
         $stats = $this->indexStatisticsAjax();
 
-        $cached_stats = get_option('_moj_es_cached_stats', '');
-        $hashed_stats = md5($stats);
-
-        // cover first ever run...
-        if ($cached_stats === '') {
-            update_option('_moj_es_cached_stats', $hashed_stats);
+        if (is_indexing() && mb_strlen($stats) < 850) {
+            $stats = $this->indexStatisticsAjax();
         }
 
-        $changed = false;
-        if ($hashed_stats !== $cached_stats) {
-            $changed = true;
-            update_option('_moj_es_cached_stats', $hashed_stats);
-        }
-
-        $send['stats'] = $stats;
-        $send['changed'] = $changed;
-
-        echo json_encode($send);
+        echo json_encode($stats);
         die();
     }
 }
