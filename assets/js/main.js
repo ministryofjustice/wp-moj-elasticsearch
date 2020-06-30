@@ -96,8 +96,7 @@ jQuery(function ($) {
         // self-executing function; get latest stats
         (function get_stats() {
             if (!statInterval) {
-                // set intervals; 3 every 10 seconds
-                statInterval = setInterval(get_stats, 3335);
+                statInterval = setInterval(get_stats, mojESPollingTime * 1000);
             }
 
             $.post(ajaxurl, {'action': 'stats_load'}, function (response) {
