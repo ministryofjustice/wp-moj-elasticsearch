@@ -103,7 +103,7 @@ class ElasticPressHooks
      * @param array
      * @return array
      */
-    public function mapSynonyms(array $mapping, string $index): array
+    public function mapSynonyms(array $mapping): array
     {
         if (! isset($mapping) || ! is_array($mapping)) {
             return 'Error mapping issue, custom map configuration aborted.';
