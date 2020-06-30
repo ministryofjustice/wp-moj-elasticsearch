@@ -298,6 +298,7 @@ class Index extends Admin
 
         // define fields
         $fields_index = [
+            'polling_delay' => [$this, 'pollingDelayField'],
             'latest_stats' => [$this, 'indexStatistics'],
             'refresh_index' => [$this, 'indexButton']
         ];
@@ -423,6 +424,19 @@ class Index extends Admin
             Destroy index and refresh
         </a>
         <p><?= $description ?></p>
+        <?php
+    }
+
+    public function pollingDelayField()
+    {
+        $option = $this->options('polling_delay')
+        ?>
+        <input type="text" value="<?= $option ?? 3 ?>" name="<?= $this->optionName() ?>[polling_delay]" />
+        <small>Seconds</small>
+        <p>This setting affects the amount of time Latest Stats (below) is refreshed.</p>
+        <script>
+            var mojESPollingTime = <?= $option ?? 3 ?>
+        </script>
         <?php
     }
 
