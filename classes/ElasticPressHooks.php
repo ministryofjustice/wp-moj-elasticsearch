@@ -24,7 +24,10 @@ class ElasticPressHooks
     {
         add_filter('ep_elasticsearch_plugins', [$this, 'filterPlugins']);
         add_filter('ep_allowed_documents_ingest_mime_types', [$this, 'filterMimeTypes']);
+        add_filter('ep_index_name', [$this, 'indexName'], 10, 1);
+        add_filter('ep_config_mapping', [$this, 'mapSynonyms'], 10, 2);
         add_action('ep_dashboard_start_index', [$this, 'preventDashboardIndex']);
+        add_filter('ep_config_mapping_request', [$this, 'mapRequest'], 10, 1);
     }
 
     /**
@@ -72,5 +75,60 @@ class ElasticPressHooks
         // TODO: prevent dashboard sync from ElasticPress UI
 
         return $index_meta;
+    }
+
+    /**
+     * Return name with date added
+     * @param string
+     * @return string
+     */
+    public function indexName(string $index_name): string
+    {
+        return $index_name . '-' . date_i18n('Y-m-d');
+    }
+
+    /**
+     * Return detailed ElasticSearch response (not just ElasticPress plugin response)
+     * @param array
+     * @return array
+     */
+    public function mapRequest(array $request): array
+    {
+        echo 'ElasticSearch Response: ' . $request['body'] . PHP_EOL;
+        return $request;
+    }
+
+    /**
+     * Add synonyms to ES mapping
+     * @param array
+     * @return array
+     */
+    public function mapSynonyms(array $mapping, string $index): array
+    {
+        if (! isset($mapping) || ! is_array($mapping)) {
+            return 'Error mapping issue, custom map configuration aborted.';
+        }
+
+        $mapping['settings']['analysis']['filter']['moj_es_plugin_synonyms'] = [
+            'type' => 'synonym_graph',
+            'synonyms' => [
+                'Chinook => wind'
+            ]
+        ];
+
+        $mapping['settings']['analysis']['analyzer']['moj_analyzer'] = [
+            'type' => 'custom',
+            'char_filter' => 'html_strip',
+            "language" => "english",
+            'tokenizer' => 'standard',
+            'filter' => [
+                'lowercase',
+                'stop',
+                'ewp_snowball',
+                'moj_es_plugin_synonyms'
+            ]
+        ];
+
+        return $mapping;
     }
 }
