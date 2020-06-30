@@ -139,7 +139,7 @@ class ElasticPressHooks
          * Synonym filter needs to be first in array as it is not compatible with ewp_word_delimiter being first
          * */
         $mapping['settings']['analysis']['analyzer']['default']['filter'] = array_merge(
-            ['moj_es_plugin_synonyms'], 
+            ['moj_es_plugin_synonyms'],
             $default_filter_array
         );
 
