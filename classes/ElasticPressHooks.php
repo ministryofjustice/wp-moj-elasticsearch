@@ -25,7 +25,7 @@ class ElasticPressHooks
         add_filter('ep_elasticsearch_plugins', [$this, 'filterPlugins']);
         add_filter('ep_allowed_documents_ingest_mime_types', [$this, 'filterMimeTypes']);
         add_filter('ep_index_name', [$this, 'indexName'], 10, 1);
-        add_filter('ep_config_mapping', [$this, 'mapSynonyms'], 10, 2);
+        add_filter('ep_config_mapping', [$this, 'mapCustomConfig'], 10, 1);
         add_action('ep_dashboard_start_index', [$this, 'preventDashboardIndex']);
         add_filter('ep_config_mapping_request', [$this, 'mapRequest'], 10, 1);
     }
@@ -99,23 +99,28 @@ class ElasticPressHooks
     }
 
     /**
-     * Add synonyms to ES mapping
+     * Add custom configurations to ElasticSearch mapping
      * @param array
      * @return array
      */
-    public function mapSynonyms(array $mapping): array
+    public function mapCustomConfig(array $mapping): array
     {
-        if (! isset($mapping) || ! is_array($mapping)) {
-            return 'Error mapping issue, custom map configuration aborted.';
+        // Check mapping exists in the expected data type 
+        if (!isset($mapping) || !is_array($mapping)) {
+            echo 'Error mapping issue, mapping does not appear to exist.';
+            return $mapping;
         }
 
+        /**
+         * Add custom synonym filter using AWS packages
+         * https://docs.aws.amazon.com/elasticsearch-service/latest/developerguide/custom-packages.html
+         * */
         $mapping['settings']['analysis']['filter']['moj_es_plugin_synonyms'] = [
-            'type' => 'synonym_graph',
-            'synonyms' => [
-                'Chinook => wind'
-            ]
+            'type' => 'synonym',
+            'synonyms_path' => 'analyzers/F11955120'
         ];
 
+        // Create a custom analyzer we can add our own filters to as required
         $mapping['settings']['analysis']['analyzer']['moj_analyzer'] = [
             'type' => 'custom',
             'char_filter' => 'html_strip',
@@ -128,6 +133,18 @@ class ElasticPressHooks
                 'moj_es_plugin_synonyms'
             ]
         ];
+
+        // Check default filter has been created by ElasticPress plugin as we need to add to it
+        if (!isset($mapping['settings']['analysis']['analyzer']['default']['filter']) || !is_array($mapping['settings']['analysis']['analyzer']['default']['filter'])) {
+            echo 'Error mapping issue, default filter is missing.';
+            return $mapping;
+        }
+
+        /**
+         * Add the custom synonym filter to the default EP plugin analyzer.
+         * Synonym filter needs to be first in array as it is not compatible with ewp_word_delimiter being first
+         * */
+        $mapping['settings']['analysis']['analyzer']['default']['filter'] = array_merge(['moj_es_plugin_synonyms'], $mapping['settings']['analysis']['analyzer']['default']['filter']);
 
         return $mapping;
     }
