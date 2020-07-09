@@ -155,7 +155,7 @@ class Admin
             echo '<div id="moj-es-' . $section_group_id . '" class="moj-es-settings-group">';
             foreach ($sections as $section) {
                 echo '<div id="moj-es-' . $section_group_id . '" class="moj-es-settings-section">';
-                echo "<h2>" .  $section['title'] ?? '' . "</h2>\n";
+                echo "<h2>" .  ($section['title'] ?? '') . "</h2>\n";
 
                 if ($section['callback']) {
                     call_user_func($section['callback'], $section);
