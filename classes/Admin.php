@@ -31,20 +31,27 @@ class Admin
      * The minimum payload size we create before sending to ES
      * @var int size in bytes
      */
-    const MOJ_PAYLOAD_MIN = 6000000;
+    public $payload_min = 20000000;
     /**
      * The maximum we allow for a custom created payload file
      * @var int size in bytes
      */
-    const MOJ_PAYLOAD_MAX = 8728000;
+    public $payload_max = 25000000;
     /**
      * The absolute maximum for any single payload request
      * @var int size in bytes
      */
-    const EP_PAYLOAD_MAX = 9728000;
+    public $payload_ep_max = 98000000;
 
     public function __construct()
     {
+        $env = env('WP_ENV') ?: 'production';
+        if ($env === 'development') {
+            $this->payload_min = 6000000;
+            $this->payload_max = 8900000;
+            $this->payload_ep_max = 9900000;
+        }
+
         $this->hooks();
     }
 
@@ -148,9 +155,7 @@ class Admin
             echo '<div id="moj-es-' . $section_group_id . '" class="moj-es-settings-group">';
             foreach ($sections as $section) {
                 echo '<div id="moj-es-' . $section_group_id . '" class="moj-es-settings-section">';
-                if ($section['title']) {
-                    echo "<h2>{$section['title']}</h2>\n";
-                }
+                echo "<h2>" .  $section['title'] ?? '' . "</h2>\n";
 
                 if ($section['callback']) {
                     call_user_func($section['callback'], $section);
@@ -325,19 +330,12 @@ class Admin
 
     /**
      * Simple wrapper to fetch the plugins data array
-     * @param $key [string]
      * @return mixed|void
      * @uses get_option()
      */
-    public function options($key = '')
+    public function options()
     {
-        $options = get_option($this->optionName(), []);
-
-        if (!empty($key)) {
-            return $options[$key] ?? null;
-        }
-
-        return $options;
+        return get_option($this->optionName(), []);
     }
 
     /**
@@ -374,7 +372,7 @@ class Admin
      * @param string $key
      * @return array|string|null
      */
-    public function getStats($key = '')
+    public function getStats()
     {
         if (!file_exists($this->importLocation() . 'moj-bulk-index-stats.json')) {
             self::setStats([
@@ -382,17 +380,12 @@ class Admin
                 'total_stored_requests' => 0,
                 'total_large_requests' => 0,
                 'bulk_body_size' => 0,
-                'large_files' => [],
+                'bulk_request_errors' => [],
+                'large_files' => []
             ]);
         }
 
-        $stats = (array)json_decode(file_get_contents($this->importLocation() . 'moj-bulk-index-stats.json'));
-
-        if (!empty($key)) {
-            return $stats[$key] ?? null;
-        }
-
-        return $stats;
+        return (array)json_decode(file_get_contents($this->importLocation() . 'moj-bulk-index-stats.json'));
     }
 
     public function setStats($es_stats)
@@ -463,5 +456,19 @@ class Admin
         }
 
         return $file_size;
+    }
+
+    public function rand($length = 10)
+    {
+        return substr(
+            str_shuffle(
+                str_repeat(
+                    $alpha_num = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ',
+                    ceil($length / strlen($alpha_num))
+                )
+            ),
+            1,
+            $length
+        );
     }
 }

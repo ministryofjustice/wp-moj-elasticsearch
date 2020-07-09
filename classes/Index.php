@@ -97,7 +97,7 @@ class Index extends Admin
         $stats = $this->getStats();
 
         // check the total size - no more than 9.7Mb
-        if (mb_strlen($args['body'], 'UTF-8') <= self::EP_PAYLOAD_MAX) {
+        if (mb_strlen($args['body'], 'UTF-8') <= $this->payload_ep_max) {
             // allow ElasticPress to index normally
             $stats['total_large_requests']++;
             $this->setStats($stats);
@@ -134,7 +134,7 @@ class Index extends Admin
         $stats['bulk_body_size'] = $this->humanFileSize($body_stored_size);
 
         // payload maybe too big?
-        if ($body_stored_size + $body_new_size > self::MOJ_PAYLOAD_MAX) {
+        if ($body_stored_size + $body_new_size > $this->payload_max) {
             return false; // index individual file (normal)
         }
 
@@ -144,7 +144,7 @@ class Index extends Admin
         $this->setStats($stats);
 
 
-        if ($body_stored_size + $body_new_size > self::MOJ_PAYLOAD_MIN) {
+        if ($body_stored_size + $body_new_size > $this->payload_min) {
             // prepare interception
             add_filter('ep_intercept_remote_request', [$this, 'interceptTrue']);
             add_filter('ep_do_intercept_request', [$this, 'requestIntercept'], 11, 4);
@@ -179,7 +179,6 @@ class Index extends Admin
         $stats['total_bulk_requests'] = $stats['total_bulk_requests'] ?? 0;
         $stats['total_bulk_requests']++;
         $stats['bulk_body_size'] = 0;
-        $this->setStats($stats);
 
         $args['timeout'] = 60;
 
@@ -192,8 +191,12 @@ class Index extends Admin
             // sleep for 5 and try one more time...
             sleep(5);
             $request = wp_remote_request($query['url'], $args);
+            if (is_wp_error($request)) {
+                $stats['bulk_request_errors'][] = $request->get_error_message();
+            }
         }
 
+        $this->setStats($stats);
         return $request;
     }
 
@@ -258,22 +261,15 @@ class Index extends Admin
 
                 $this->requestIntercept(null, ['url' => $url], $args, null);
 
-                if (file_exists($file_location)) {
-                    $stats['cleanup_error'] = 'Bodies file still exists after sending last request';
-                    $stat_error = true;
-                }
-
                 if ($stat_error) {
                     $this->setStats($stats);
 
                     wp_mail(
                         get_bloginfo('admin_email'),
-                        'Indexing errors have been found',
+                        'Search indexing errors have been found in ' . get_bloginfo('name'),
                         $this->debug('Indexing Stats', $stats)
                     );
                 }
-
-                $indexing_began_at = $this->options('indexing_began_at');
 
                 // now we are done, stop the cron hook from running:
                 $timestamp = wp_next_scheduled('moj_es_cron_hook');
@@ -301,6 +297,7 @@ class Index extends Admin
         // define fields
         $fields_index = [
             'polling_delay' => [$this, 'pollingDelayField'],
+            'current_index' => [$this, 'getCurrentIndexName'],
             'latest_stats' => [$this, 'indexStatistics'],
             'refresh_index' => [$this, 'indexButton']
         ];
@@ -350,9 +347,8 @@ class Index extends Admin
                 </div>';
         }
 
-        $output .= '<ul id="inner-indexing-stats">';
-        $total_files = '';
-        $requests = '';
+        $output .= '<ul id="inner-indexing-stats"><div style="display:none">' . $this->rand(500) . '</div>';
+        $total_files = $requests = '';
 
         foreach ($this->getStats() as $key => $stat) {
             if (strpos($key, 'last_') > -1) {
@@ -365,17 +361,15 @@ class Index extends Admin
                     '</li>';
 
                 if (!empty($stat)) {
-                    $total_files .= '<li>' . ucwords(str_replace('_', ' ', $key)) . ':';
-                    $total_files .= '<ol>';
-
+                    $total_files .= '<li>' .  ucwords(str_replace('_', ' ', $key)) . ':';
+                    $total_files .= '<div class="large_file_holder"><ol>';
                     foreach ($stat as $pid) {
                         $link = '<a href="/wp/wp-admin/post.php?post=' .
                             $pid->index->_id . '&action=edit" target="_blank">' .
                             $pid->index->_id . '</a>';
                         $total_files .= '<li><strong>' . $link . '</strong></li>';
                     }
-
-                    $total_files .= '</ol></li>';
+                    $total_files .= '</ol></div></li>';
                 }
             }
 
@@ -383,21 +377,18 @@ class Index extends Admin
                 $requests .= '<li>' .
                     ucwords(
                         str_replace(['total', '_'], ['', ' '], $key)
-                    ) . ': <strong>' . $stat . '</strong>' . $this->maybeBulkBodyFormat($key) . '</li>';
+                    ) . ': <strong>' . print_r($stat, true) .
+                    '</strong>' . $this->maybeBulkBodyFormat($key) .
+                    '</li>';
             }
         }
 
-        $output .= $requests;
-        $output .= $total_files;
-        $output .= '</ul>';
-
-
-        return $output;
+        return $output . $requests . $total_files . '</ul>';
     }
 
     private function maybeBulkBodyFormat($key)
     {
-        return $key === 'bulk_body_size' ? ' / ' . $this->humanFileSize(self::MOJ_PAYLOAD_MIN) : '';
+        return $key === 'bulk_body_size' ? ' / ' . $this->humanFileSize($this->payload_min) : '';
     }
 
     public function indexStatisticsIntro()
@@ -438,13 +429,14 @@ class Index extends Admin
 
     public function pollingDelayField()
     {
-        $option = $this->options('polling_delay')
+        $option = $this->options();
+        $key = 'polling_delay';
         ?>
-        <input type="text" value="<?= $option ?? 3 ?>" name="<?= $this->optionName() ?>[polling_delay]" />
+        <input type="text" value="<?= $option[$key] ?? 3 ?>" name="<?= $this->optionName() ?>[<?= $key ?>]"/>
         <small>Seconds</small>
         <p>This setting affects the amount of time Latest Stats (below) is refreshed.</p>
         <script>
-            var mojESPollingTime = <?= $option ?? 3 ?>
+            var mojESPollingTime = <?= $option[$key] ?? 3 ?>
         </script>
         <?php
     }

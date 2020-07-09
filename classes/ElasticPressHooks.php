@@ -70,13 +70,32 @@ class ElasticPressHooks
     }
 
     /**
-     * Return name with date added
+     * Return index name with mods. added
+     *
      * @param string
      * @return string
+     *
+     * @uses str_replace()
      */
     public function indexName(string $index_name): string
     {
-        return $index_name . '-' . date_i18n('Y-m-d');
+        $search = [
+            'dockerwp',
+            'devwp',
+            'stagingwp',
+            'justicegovukwp', // intranet specific
+            'dsdiowp'
+        ];
+
+        $replace = [
+            '.local',
+            '.dev',
+            '.staging',
+            '.production', // intranet specific
+            ''
+        ];
+
+        return str_replace($search, $replace, $index_name);
     }
 
     /**
