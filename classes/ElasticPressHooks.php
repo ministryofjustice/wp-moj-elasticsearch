@@ -13,7 +13,6 @@ class ElasticPressHooks
 {
     public function __construct()
     {
-        define('MOJ_INDEX_DATE_TIME', date_i18n('Y-m-d-Hi'));
         $this->hooks();
     }
 

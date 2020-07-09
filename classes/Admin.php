@@ -31,20 +31,27 @@ class Admin
      * The minimum payload size we create before sending to ES
      * @var int size in bytes
      */
-    const MOJ_PAYLOAD_MIN = 6000000;
+    public $payload_min = 20000000;
     /**
      * The maximum we allow for a custom created payload file
      * @var int size in bytes
      */
-    const MOJ_PAYLOAD_MAX = 8728000;
+    public $payload_max = 25000000;
     /**
      * The absolute maximum for any single payload request
      * @var int size in bytes
      */
-    const EP_PAYLOAD_MAX = 9728000;
+    public $payload_ep_max = 98000000;
 
     public function __construct()
     {
+        $env = env('WP_ENV') ?: 'production';
+        if ($env === 'development') {
+            $this->payload_min = 6000000;
+            $this->payload_max = 8900000;
+            $this->payload_ep_max = 9900000;
+        }
+
         $this->hooks();
     }
 

@@ -97,7 +97,7 @@ class Index extends Admin
         $stats = $this->getStats();
 
         // check the total size - no more than 9.7Mb
-        if (mb_strlen($args['body'], 'UTF-8') <= self::EP_PAYLOAD_MAX) {
+        if (mb_strlen($args['body'], 'UTF-8') <= $this->payload_ep_max) {
             // allow ElasticPress to index normally
             $stats['total_large_requests']++;
             $this->setStats($stats);
@@ -134,7 +134,7 @@ class Index extends Admin
         $stats['bulk_body_size'] = $this->humanFileSize($body_stored_size);
 
         // payload maybe too big?
-        if ($body_stored_size + $body_new_size > self::MOJ_PAYLOAD_MAX) {
+        if ($body_stored_size + $body_new_size > $this->payload_max) {
             return false; // index individual file (normal)
         }
 
@@ -144,7 +144,7 @@ class Index extends Admin
         $this->setStats($stats);
 
 
-        if ($body_stored_size + $body_new_size > self::MOJ_PAYLOAD_MIN) {
+        if ($body_stored_size + $body_new_size > $this->payload_min) {
             // prepare interception
             add_filter('ep_intercept_remote_request', [$this, 'interceptTrue']);
             add_filter('ep_do_intercept_request', [$this, 'requestIntercept'], 11, 4);
@@ -400,7 +400,7 @@ class Index extends Admin
 
     private function maybeBulkBodyFormat($key)
     {
-        return $key === 'bulk_body_size' ? ' / ' . $this->humanFileSize(self::MOJ_PAYLOAD_MIN) : '';
+        return $key === 'bulk_body_size' ? ' / ' . $this->humanFileSize($this->payload_min) : '';
     }
 
     public function indexStatisticsIntro()
