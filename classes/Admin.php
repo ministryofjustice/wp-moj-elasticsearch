@@ -155,9 +155,7 @@ class Admin
             echo '<div id="moj-es-' . $section_group_id . '" class="moj-es-settings-group">';
             foreach ($sections as $section) {
                 echo '<div id="moj-es-' . $section_group_id . '" class="moj-es-settings-section">';
-                if ($section['title']) {
-                    echo "<h2>{$section['title']}</h2>\n";
-                }
+                echo "<h2>" .  $section['title'] ?? '' . "</h2>\n";
 
                 if ($section['callback']) {
                     call_user_func($section['callback'], $section);
@@ -332,19 +330,12 @@ class Admin
 
     /**
      * Simple wrapper to fetch the plugins data array
-     * @param $key [string]
      * @return mixed|void
      * @uses get_option()
      */
-    public function options($key = '')
+    public function options()
     {
-        $options = get_option($this->optionName(), []);
-
-        if (!empty($key)) {
-            return $options[$key] ?? null;
-        }
-
-        return $options;
+        return get_option($this->optionName(), []);
     }
 
     /**
@@ -379,10 +370,9 @@ class Admin
     /**
      * Get the stats stored from
      * @param string $key
-     * @param bool $update_only
      * @return array|string|null
      */
-    public function getStats($key = '', $update_only = false)
+    public function getStats()
     {
         if (!file_exists($this->importLocation() . 'moj-bulk-index-stats.json')) {
             self::setStats([
@@ -395,13 +385,7 @@ class Admin
             ]);
         }
 
-        $stats = (array)json_decode(file_get_contents($this->importLocation() . 'moj-bulk-index-stats.json'));
-
-        if (!empty($key)) {
-            return $stats[$key] ?? null;
-        }
-
-        return $stats;
+        return (array)json_decode(file_get_contents($this->importLocation() . 'moj-bulk-index-stats.json'));
     }
 
     public function setStats($es_stats)
@@ -479,8 +463,8 @@ class Admin
         return substr(
             str_shuffle(
                 str_repeat(
-                    $x = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ',
-                    ceil($length / strlen($x))
+                    $alpha_num = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ',
+                    ceil($length / strlen($alpha_num))
                 )
             ),
             1,

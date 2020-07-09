@@ -261,11 +261,6 @@ class Index extends Admin
 
                 $this->requestIntercept(null, ['url' => $url], $args, null);
 
-                if (file_exists($file_location)) {
-                    $stats['cleanup_error'] = 'Bodies file still exists after sending last request';
-                    $stat_error = true;
-                }
-
                 if ($stat_error) {
                     $this->setStats($stats);
 
@@ -434,13 +429,14 @@ class Index extends Admin
 
     public function pollingDelayField()
     {
-        $option = $this->options('polling_delay')
+        $option = $this->options();
+        $key = 'polling_delay';
         ?>
-        <input type="text" value="<?= $option ?? 3 ?>" name="<?= $this->optionName() ?>[polling_delay]"/>
+        <input type="text" value="<?= $option[$key] ?? 3 ?>" name="<?= $this->optionName() ?>[<?= $key ?>]"/>
         <small>Seconds</small>
         <p>This setting affects the amount of time Latest Stats (below) is refreshed.</p>
         <script>
-            var mojESPollingTime = <?= $option ?? 3 ?>
+            var mojESPollingTime = <?= $option[$key] ?? 3 ?>
         </script>
         <?php
     }
