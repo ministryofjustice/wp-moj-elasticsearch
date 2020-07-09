@@ -353,8 +353,7 @@ class Index extends Admin
         }
 
         $output .= '<ul id="inner-indexing-stats"><div style="display:none">' . $this->rand(500) . '</div>';
-        $total_files = '';
-        $requests = '';
+        $total_files = $requests = '';
 
         foreach ($this->getStats() as $key => $stat) {
             if (strpos($key, 'last_') > -1) {
@@ -367,8 +366,7 @@ class Index extends Admin
                     '</li>';
 
                 if (!empty($stat)) {
-                    $total_files .= '<li>' .
-                        ucwords(str_replace('_', ' ', $key)) . ':';
+                    $total_files .= '<li>' .  ucwords(str_replace('_', ' ', $key)) . ':';
                     $total_files .= '<div class="large_file_holder"><ol>';
                     foreach ($stat as $pid) {
                         $link = '<a href="/wp/wp-admin/post.php?post=' .
@@ -376,7 +374,6 @@ class Index extends Admin
                             $pid->index->_id . '</a>';
                         $total_files .= '<li><strong>' . $link . '</strong></li>';
                     }
-
                     $total_files .= '</ol></div></li>';
                 }
             }
@@ -391,11 +388,7 @@ class Index extends Admin
             }
         }
 
-        $output .= $requests;
-        $output .= $total_files;
-        $output .= '</ul>';
-
-        return $output;
+        return $output . $requests . $total_files . '</ul>';
     }
 
     private function maybeBulkBodyFormat($key)
@@ -443,18 +436,13 @@ class Index extends Admin
     {
         $option = $this->options('polling_delay')
         ?>
-        <input type="text" value="<?= $option ?? 3 ?>" name="<?= $this->optionName() ?>[polling_delay]" />
+        <input type="text" value="<?= $option ?? 3 ?>" name="<?= $this->optionName() ?>[polling_delay]"/>
         <small>Seconds</small>
         <p>This setting affects the amount of time Latest Stats (below) is refreshed.</p>
         <script>
             var mojESPollingTime = <?= $option ?? 3 ?>
         </script>
         <?php
-    }
-
-    public function getCurrentIndexName()
-    {
-        $option = $this->options('polling_delay');
     }
 
     public function getStatsHTML()
