@@ -372,9 +372,10 @@ class Admin
     /**
      * Get the stats stored from
      * @param string $key
+     * @param bool $update_only
      * @return array|string|null
      */
-    public function getStats($key = '')
+    public function getStats($key = '', $update_only = false)
     {
         if (!file_exists($this->importLocation() . 'moj-bulk-index-stats.json')) {
             self::setStats([
@@ -382,7 +383,8 @@ class Admin
                 'total_stored_requests' => 0,
                 'total_large_requests' => 0,
                 'bulk_body_size' => 0,
-                'large_files' => [],
+                'bulk_request_errors' => [],
+                'large_files' => []
             ]);
         }
 
@@ -463,5 +465,19 @@ class Admin
         }
 
         return $file_size;
+    }
+
+    public function rand($length = 10)
+    {
+        return substr(
+            str_shuffle(
+                str_repeat(
+                    $x = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ',
+                    ceil($length / strlen($x))
+                )
+            ),
+            1,
+            $length
+        );
     }
 }

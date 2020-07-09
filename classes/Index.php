@@ -179,7 +179,6 @@ class Index extends Admin
         $stats['total_bulk_requests'] = $stats['total_bulk_requests'] ?? 0;
         $stats['total_bulk_requests']++;
         $stats['bulk_body_size'] = 0;
-        $this->setStats($stats);
 
         $args['timeout'] = 60;
 
@@ -192,8 +191,12 @@ class Index extends Admin
             // sleep for 5 and try one more time...
             sleep(5);
             $request = wp_remote_request($query['url'], $args);
+            if (is_wp_error($request)) {
+                $stats['bulk_request_errors'][] = $request->get_error_message();
+            }
         }
 
+        $this->setStats($stats);
         return $request;
     }
 
@@ -268,12 +271,10 @@ class Index extends Admin
 
                     wp_mail(
                         get_bloginfo('admin_email'),
-                        'Indexing errors have been found',
+                        'Search indexing errors have been found in ' . get_bloginfo('name'),
                         $this->debug('Indexing Stats', $stats)
                     );
                 }
-
-                $indexing_began_at = $this->options('indexing_began_at');
 
                 // now we are done, stop the cron hook from running:
                 $timestamp = wp_next_scheduled('moj_es_cron_hook');
@@ -301,6 +302,7 @@ class Index extends Admin
         // define fields
         $fields_index = [
             'polling_delay' => [$this, 'pollingDelayField'],
+            'current_index' => [$this, 'getCurrentIndexName'],
             'latest_stats' => [$this, 'indexStatistics'],
             'refresh_index' => [$this, 'indexButton']
         ];
@@ -350,7 +352,7 @@ class Index extends Admin
                 </div>';
         }
 
-        $output .= '<ul id="inner-indexing-stats">';
+        $output .= '<ul id="inner-indexing-stats"><div style="display:none">' . $this->rand(500) . '</div>';
         $total_files = '';
         $requests = '';
 
@@ -365,9 +367,9 @@ class Index extends Admin
                     '</li>';
 
                 if (!empty($stat)) {
-                    $total_files .= '<li>' . ucwords(str_replace('_', ' ', $key)) . ':';
-                    $total_files .= '<ol>';
-
+                    $total_files .= '<li>' .
+                        ucwords(str_replace('_', ' ', $key)) . ':';
+                    $total_files .= '<div class="large_file_holder"><ol>';
                     foreach ($stat as $pid) {
                         $link = '<a href="/wp/wp-admin/post.php?post=' .
                             $pid->index->_id . '&action=edit" target="_blank">' .
@@ -375,7 +377,7 @@ class Index extends Admin
                         $total_files .= '<li><strong>' . $link . '</strong></li>';
                     }
 
-                    $total_files .= '</ol></li>';
+                    $total_files .= '</ol></div></li>';
                 }
             }
 
@@ -383,14 +385,15 @@ class Index extends Admin
                 $requests .= '<li>' .
                     ucwords(
                         str_replace(['total', '_'], ['', ' '], $key)
-                    ) . ': <strong>' . $stat . '</strong>' . $this->maybeBulkBodyFormat($key) . '</li>';
+                    ) . ': <strong>' . print_r($stat, true) .
+                    '</strong>' . $this->maybeBulkBodyFormat($key) .
+                    '</li>';
             }
         }
 
         $output .= $requests;
         $output .= $total_files;
         $output .= '</ul>';
-
 
         return $output;
     }
@@ -447,6 +450,11 @@ class Index extends Admin
             var mojESPollingTime = <?= $option ?? 3 ?>
         </script>
         <?php
+    }
+
+    public function getCurrentIndexName()
+    {
+        $option = $this->options('polling_delay');
     }
 
     public function getStatsHTML()

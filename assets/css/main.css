@@ -59,6 +59,15 @@ a.nav-tab:focus {
     opacity:1;
 }
 
+.moj-es .large_file_holder {
+    height: 100px;
+    width: 200px;
+    overflow-y: scroll;
+    background-color: white;
+    border: 1px solid #1d6fb8;
+    padding: 6px;
+}
+
 @keyframes ldio-hokc2a6hk1r {
     0% {
         opacity: 1
