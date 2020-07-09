@@ -297,7 +297,6 @@ class Index extends Admin
         // define fields
         $fields_index = [
             'polling_delay' => [$this, 'pollingDelayField'],
-            'current_index' => [$this, 'getCurrentIndexName'],
             'latest_stats' => [$this, 'indexStatistics'],
             'refresh_index' => [$this, 'indexButton']
         ];
