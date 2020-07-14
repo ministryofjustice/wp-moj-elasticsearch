@@ -15,13 +15,10 @@ use function ElasticPress\Utils\is_indexing;
  * @package MOJElasticSearch
  * @SuppressWarnings(PHPMD.TooManyPublicMethods)
  */
-class Admin
+class Admin extends Options
 {
     use Debug;
 
-    public $prefix = 'moj_es';
-    public $option_name = '_settings';
-    public $option_group = '_plugin';
     public $text_domain = 'wp-moj-elasticsearch';
     public static $tabs = [];
     public static $sections = [];
@@ -42,15 +39,22 @@ class Admin
      * @var int size in bytes
      */
     public $payload_ep_max = 98000000;
+    /**
+     * The current environment, assumed production if not present
+     * @var int size in bytes
+     */
+    public $env = 98000000;
 
     public function __construct()
     {
-        $env = env('WP_ENV') ?: 'production';
-        if ($env === 'development') {
+        $this->env = env('WP_ENV') ?: 'production';
+        if ($this->env === 'development') {
             $this->payload_min = 6000000;
             $this->payload_max = 8900000;
             $this->payload_ep_max = 9900000;
         }
+
+        parent::__construct();
 
         $this->hooks();
     }
@@ -61,6 +65,7 @@ class Admin
         add_action('admin_menu', [$this, 'settingsPage']);
         add_action('ep_dashboard_start_index', [$this, 'clearStats']);
         add_action('ep_wp_cli_pre_index', [$this, 'clearStats']);
+        add_action('moj_es_exec_index', [$this, 'scheduleIndexing']);
         add_filter('cron_schedules', [$this, 'addCronIntervals']);
         add_action('admin_init', [$this, 'register']);
     }
@@ -73,7 +78,11 @@ class Admin
             plugins_url('../', __FILE__) . 'assets/js/main.js',
             ['jquery']
         );
-        wp_localize_script('moj-es-js', 'moj_js_object', array('ajaxurl' => admin_url('admin-ajax.php')));
+        wp_localize_script(
+            'moj-es-js',
+            'moj_js_object',
+            array('ajaxurl' => admin_url('admin-ajax.php'))
+        );
     }
 
     /**
@@ -155,7 +164,7 @@ class Admin
             echo '<div id="moj-es-' . $section_group_id . '" class="moj-es-settings-group">';
             foreach ($sections as $section) {
                 echo '<div id="moj-es-' . $section_group_id . '" class="moj-es-settings-section">';
-                echo "<h2>" .  ($section['title'] ?? '') . "</h2>\n";
+                echo "<h2>" . ($section['title'] ?? '') . "</h2>\n";
 
                 if ($section['callback']) {
                     call_user_func($section['callback'], $section);
@@ -210,28 +219,14 @@ class Admin
 
         // catch Bulk index action
         if (isset($options['index_button'])) {
-            if (is_indexing()) {
-                self::settingNotice(
-                    'The index cannot be refreshed until the current cycle has completed.',
-                    'bulk-warning',
-                    'warning'
-                );
-                return $options;
-            }
-
-            $options['indexing_began_at'] = time();
-            $process_id = exec(
-                "wp elasticpress index --setup --per-page=1 --allow-root > /dev/null 2>&1 & echo $!;"
-            );
-            $this->clearStats();
-            self::settingNotice('Bulk indexing has started', 'bulk-warning', 'success');
+            return $this->optionBulkIndex($options);
         }
 
         // catch Bulk index action kill
         if (isset($options['index_kill'])) {
             $process_id = exec('pgrep -u www-data php$');
             if ($process_id > 0) {
-                if (posix_kill($process_id, 9)) {
+                if (posix_kill($process_id, 15)) {
                     delete_transient('ep_wpcli_sync');
                     self::settingNotice(
                         'Done. The indexing process has been stopped',
@@ -253,6 +248,42 @@ class Admin
                 'bulk-warning'
             );
         }
+
+        return $options;
+    }
+
+    /**
+     * Is run after the destroy index button is pressed in the front end.
+     * @param $options
+     * @return mixed
+     */
+    public function optionBulkIndex($options)
+    {
+        if (is_indexing()) {
+            self::settingNotice(
+                'The index cannot be refreshed until the current cycle has completed.',
+                'bulk-warning',
+                'warning'
+            );
+            return $options;
+        }
+
+        // schedule a task to start the index
+        if (!wp_next_scheduled('moj_es_exec_index')) {
+            wp_schedule_event(time(), 'one_minute', 'moj_es_exec_index');
+        }
+
+        // check now in case we need to run.
+        if ($this->scheduleIndexing()) {
+            self::settingNotice('Bulk indexing has started.', 'bulk-warning', 'success');
+            return $options;
+        }
+
+        self::settingNotice(
+            'Bulk indexing has been scheduled to run after midnight.',
+            'bulk-warning',
+            'info'
+        );
 
         return $options;
     }
@@ -329,78 +360,6 @@ class Admin
     }
 
     /**
-     * Simple wrapper to fetch the plugins data array
-     * @return mixed|void
-     * @uses get_option()
-     */
-    public function options()
-    {
-        return get_option($this->optionName(), []);
-    }
-
-    /**
-     * Get the option group for the plugin settings. Used as 'page' in register_settings()
-     * @return string
-     */
-    public function optionGroup()
-    {
-        return $this->prefix . $this->option_group;
-    }
-
-    /**
-     * The settings name for our plugins option data.
-     * Calling get_option() with this string will produce the plugins data.
-     * @return string
-     */
-    public function optionName()
-    {
-        return $this->prefix . $this->option_name;
-    }
-
-    /**
-     * Defines the import data location in the uploads directory.
-     * @return string
-     */
-    public function importLocation()
-    {
-        $file_dir = get_temp_dir();
-        return $file_dir . basename(plugin_dir_path(dirname(__FILE__, 1))) . DIRECTORY_SEPARATOR;
-    }
-
-    /**
-     * Get the stats stored from
-     * @param string $key
-     * @return array|string|null
-     */
-    public function getStats()
-    {
-        if (!file_exists($this->importLocation() . 'moj-bulk-index-stats.json')) {
-            self::setStats([
-                'total_bulk_requests' => 0,
-                'total_stored_requests' => 0,
-                'total_large_requests' => 0,
-                'bulk_body_size' => 0,
-                'bulk_request_errors' => [],
-                'large_files' => []
-            ]);
-        }
-
-        return (array)json_decode(file_get_contents($this->importLocation() . 'moj-bulk-index-stats.json'));
-    }
-
-    public function setStats($es_stats)
-    {
-        $handle = fopen($this->importLocation() . 'moj-bulk-index-stats.json', 'w');
-        fwrite($handle, json_encode($es_stats));
-        fclose($handle);
-    }
-
-    public function clearStats()
-    {
-        unlink($this->importLocation() . 'moj-bulk-index-stats.json');
-    }
-
-    /**
      * @param $schedules
      * @return array
      */
@@ -470,5 +429,33 @@ class Admin
             1,
             $length
         );
+    }
+
+    public function beginBackgroundIndex()
+    {
+        $this->clearStats();
+        exec("wp elasticpress index --setup --per-page=1 --allow-root > /dev/null 2>&1 & echo $!;");
+
+        // now we have started, stop the cron hook from running:
+        $timestamp = wp_next_scheduled('moj_es_exec_index');
+        wp_unschedule_event($timestamp, 'moj_es_exec_index');
+    }
+
+    public function scheduleIndexing()
+    {
+        if ($this->env === 'production') {
+            // on production, prevent bulk indexes in the day
+            // if requested between 7.30am-12pm, schedule a task to launch after midnight
+            $prod_window_start = '00:00';
+            $prod_window_stop = '07:30';
+            if (time() > strtotime($prod_window_start) && time() < strtotime($prod_window_stop)) {
+                $this->beginBackgroundIndex();
+                return true;
+            }
+            return false;
+        }
+
+        $this->beginBackgroundIndex();
+        return true;
     }
 }

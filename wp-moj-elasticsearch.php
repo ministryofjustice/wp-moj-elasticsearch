@@ -14,6 +14,7 @@
 // Load all our classes from PSR4 autoloader
 require(MOJ_ROOT_DIR . '/vendor/autoload.php');
 
+use MOJElasticSearch\Options;
 use MOJElasticSearch\Admin;
 use MOJElasticSearch\Auth;
 use MOJElasticSearch\ElasticPressHooks;
@@ -22,6 +23,7 @@ use MOJElasticSearch\ManageData;
 use MOJElasticSearch\SignAmazonEsRequests;
 
 if (new Auth) {
+    new Options;
     new Admin;
     new SignAmazonEsRequests;
     new ElasticPressHooks;

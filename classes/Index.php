@@ -33,6 +33,7 @@ class Index extends Admin
         add_filter('ep_pre_request_url', [$this, 'request'], 11, 5);
         add_action('moj_es_cron_hook', [$this, 'cleanUpIndexing']);
         add_action('wp_ajax_stats_load', [$this, 'getStatsHTML']);
+        add_action('http_api_debug', [$this, 'showResponse'], 10, 5);
     }
 
     /**
@@ -96,7 +97,7 @@ class Index extends Admin
 
         $stats = $this->getStats();
 
-        // check the total size - no more than 9.7Mb
+        // check the total size - no more than max defined
         if (mb_strlen($args['body'], 'UTF-8') <= $this->payload_ep_max) {
             // allow ElasticPress to index normally
             $stats['total_large_requests']++;
@@ -158,7 +159,9 @@ class Index extends Admin
 
     public function showResponse($response, $response_name, $requests_name, $parsed_args, $url)
     {
-        update_option('_moj_es_index_debug', $this->debug('Response', $response));
+        if (str_replace('intranet.local', '', $url) !== $url) {
+            update_option('_moj_es_index_debug', $this->debug('Response', $response));
+        }
     }
 
     public function writeBodyToFile($body)
@@ -173,30 +176,27 @@ class Index extends Admin
 
     public function requestIntercept($request, $query, $args, $failures)
     {
-        $args['body'] = file_get_contents($this->importLocation() . 'moj-bulk-index-body.json');
-
         $stats = $this->getStats();
+
+        $args['body'] = file_get_contents($this->importLocation() . 'moj-bulk-index-body.json') . "\n";
+        $args['timeout'] = 120; // for all requests
+
+        // this doesn't run (anymore!) when the cron kicks it off.
+        //  - what has changed?
+        //  - Data is available to make the request - true
+        //  -
+        $request = wp_remote_request($query['url'], $args);
+
         $stats['total_bulk_requests'] = $stats['total_bulk_requests'] ?? 0;
         $stats['total_bulk_requests']++;
         $stats['bulk_body_size'] = 0;
-
-        $args['timeout'] = 60;
+        $stats['last_url'] = $query['url'];
+        $stats['status_code'] = wp_remote_retrieve_response_code($request);
+        $stats['message'] = wp_remote_retrieve_response_message($request);
+        $this->setStats($stats);
 
         unlink($this->importLocation() . 'moj-bulk-index-body.json');
 
-        $request = wp_remote_request($query['url'], $args);
-
-        // did the request work?
-        if (is_wp_error($request)) {
-            // sleep for 5 and try one more time...
-            sleep(5);
-            $request = wp_remote_request($query['url'], $args);
-            if (is_wp_error($request)) {
-                $stats['bulk_request_errors'][] = $request->get_error_message();
-            }
-        }
-
-        $this->setStats($stats);
         return $request;
     }
 
@@ -209,6 +209,7 @@ class Index extends Admin
 
         // remove body from overall payload for reporting
         unset($args['body']);
+        $args['timeout'] = 120; // for all requests
         $stats['last_args'] = json_encode($args);
         $this->setStats($stats);
 
@@ -296,6 +297,7 @@ class Index extends Admin
 
         // define fields
         $fields_index = [
+            'storage_is_db' => [$this, 'storageIsDB'],
             'polling_delay' => [$this, 'pollingDelayField'],
             'latest_stats' => [$this, 'indexStatistics'],
             'refresh_index' => [$this, 'indexButton']
@@ -326,63 +328,6 @@ class Index extends Admin
                             Yes, let\'s kill this... GO!
                         </a>
                     </div>';
-    }
-
-    public function indexStatisticsAjax()
-    {
-        $output = '';
-        if (is_indexing()) {
-            $output .= '<div class="notice notice-warning moj-es-stats-index-notice">
-                    <p><strong>Indexing is currently active</strong>
-                    <button name="moj_es_settings[index_kill]" value="1" class="button-primary kill_index_button"
-                        disabled="disabled">
-                        Stop Indexing
-                    </button>
-                    <a href="#TB_inline?&width=400&height=150&inlineId=my-kill-content-id"
-                        class="button-primary kill_index_button thickbox"
-                        title="Kill Elasticsearch Indexing">
-                        Stop Indexing
-                    </a></p>
-                </div>';
-        }
-
-        $output .= '<ul id="inner-indexing-stats"><div style="display:none">' . $this->rand(500) . '</div>';
-        $total_files = $requests = '';
-
-        foreach ($this->getStats() as $key => $stat) {
-            if (strpos($key, 'last_') > -1) {
-                continue;
-            }
-            if ($key === 'large_files') {
-                $large_file_count = count($stat);
-                $total_files = '<li>Large posts (skipped): we have found <strong>' .
-                    $large_file_count . '</strong> large item' . ($large_file_count === 1 ? '' : 's') .
-                    '</li>';
-
-                if (!empty($stat)) {
-                    $total_files .= '<li>' .  ucwords(str_replace('_', ' ', $key)) . ':';
-                    $total_files .= '<div class="large_file_holder"><ol>';
-                    foreach ($stat as $pid) {
-                        $link = '<a href="/wp/wp-admin/post.php?post=' .
-                            $pid->index->_id . '&action=edit" target="_blank">' .
-                            $pid->index->_id . '</a>';
-                        $total_files .= '<li><strong>' . $link . '</strong></li>';
-                    }
-                    $total_files .= '</ol></div></li>';
-                }
-            }
-
-            if ($key !== 'large_files') {
-                $requests .= '<li>' .
-                    ucwords(
-                        str_replace(['total', '_'], ['', ' '], $key)
-                    ) . ': <strong>' . print_r($stat, true) .
-                    '</strong>' . $this->maybeBulkBodyFormat($key) .
-                    '</li>';
-            }
-        }
-
-        return $output . $requests . $total_files . '</ul>';
     }
 
     private function maybeBulkBodyFormat($key)
@@ -426,6 +371,21 @@ class Index extends Admin
         <?php
     }
 
+    public function storageIsDB()
+    {
+        $option = $this->options();
+        $storage_is_db = $option['storage_is_db'] ?? null;
+        ?>
+        <p>Should we store index stats in the DB or write them to disc?</p>
+        <input
+            type="checkbox"
+            value="1"
+            name="<?= $this->optionName() ?>[storage_is_db]"
+            <?php checked('1', $storage_is_db) ?>
+        /> <small id="storage_indicator"><?= ($this->stats_use_db ? 'Yes, store in DB' : 'No, write to disc') ?></small>
+        <?php
+    }
+
     public function pollingDelayField()
     {
         $option = $this->options();
@@ -440,13 +400,69 @@ class Index extends Admin
         <?php
     }
 
+    public function indexStatisticsAjax()
+    {
+        $output = '';
+        if (is_indexing()) {
+            $output .= '<div class="notice notice-warning moj-es-stats-index-notice">
+                    <p><strong>Indexing is currently active</strong>
+                    <button name="moj_es_settings[index_kill]" value="1" class="button-primary kill_index_button"
+                        disabled="disabled">
+                        Stop Indexing
+                    </button>
+                    <a href="#TB_inline?&width=400&height=150&inlineId=my-kill-content-id"
+                        class="button-primary kill_index_button thickbox"
+                        title="Kill Elasticsearch Indexing">
+                        Stop Indexing
+                    </a></p>
+                </div>';
+        }/* else {
+            $output .= get_option('_moj_es_index_debug');
+        }*/
+
+        $output .= '<ul id="inner-indexing-stats"><div style="display:none">' . $this->rand(500) . '</div>';
+        $total_files = $requests = '';
+
+        foreach ($this->getStats() as $key => $stat) {
+            if (strpos($key, 'last_') > -1) {
+                //continue;
+            }
+            if ($key === 'large_files') {
+                $large_file_count = count($stat);
+                $total_files = '<li>Large posts (skipped): we have found <strong>' .
+                    $large_file_count . '</strong> large item' . ($large_file_count === 1 ? '' : 's') .
+                    '</li>';
+
+                if (!empty($stat)) {
+                    $total_files .= '<li>' . ucwords(str_replace('_', ' ', $key)) . ':';
+                    $total_files .= '<div class="large_file_holder"><ol>';
+                    foreach ($stat as $pid) {
+                        $link = '<a href="/wp/wp-admin/post.php?post=' .
+                            $pid->index->_id . '&action=edit" target="_blank">' .
+                            $pid->index->_id . '</a>';
+                        $total_files .= '<li><strong>' . $link . '</strong></li>';
+                    }
+                    $total_files .= '</ol></div></li>';
+                }
+            }
+
+            if ($key !== 'large_files') {
+                $requests .= '<li>' .
+                    ucwords(
+                        str_replace(['total', '_'], ['', ' '], $key)
+                    ) . ': <strong>' . print_r($stat, true) .
+                    '</strong>' . $this->maybeBulkBodyFormat($key) .
+                    '</li>';
+            }
+        }
+
+        return $output . $requests . $total_files . '</ul>';
+    }
+
     public function getStatsHTML()
     {
+        $this->options();
         $stats = $this->indexStatisticsAjax();
-
-        if (is_indexing() && mb_strlen($stats) < 850) {
-            $stats = $this->indexStatisticsAjax();
-        }
 
         echo json_encode($stats);
         die();
