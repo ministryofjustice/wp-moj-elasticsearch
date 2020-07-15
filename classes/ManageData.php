@@ -78,7 +78,7 @@ class ManageData extends Admin
         echo '<input type="file" name="weighting-import" class="button-primary" /><br><br>';
 
         // Check and make dir if it doesn't exist
-        wp_mkdir_p(parent::importLocation());
+        wp_mkdir_p($this->importLocation());
     }
 
     /**

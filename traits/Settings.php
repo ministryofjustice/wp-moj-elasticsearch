@@ -36,31 +36,4 @@ trait Settings
             }
         }
     }
-
-    /**
-     * Update a setting value using the WP Settings API
-     * @param $key
-     * @param $value
-     * @return bool
-     */
-    public function updateOption($key, $value)
-    {
-        $options = $this->options();
-
-        $options[$key] = $value;
-        return update_option($this->optionName(), $options);
-    }
-
-    /**
-     * Delete a setting value using the WP Settings API
-     * @param $key
-     * @return bool
-     */
-    public function deleteOption($key)
-    {
-        $options = $this->options();
-
-        unset($options[$key]);
-        return update_option($this->optionName(), $options);
-    }
 }
