@@ -2,6 +2,7 @@
 
 namespace MOJElasticSearch;
 
+use WP_Error;
 use function ElasticPress\Utils\is_indexing;
 
 /**
@@ -21,19 +22,29 @@ class Index extends Admin
 
     private $stat_output_echo = true;
 
+    private $index_cleaned_up = false;
+
     public function __construct()
     {
         parent::__construct();
         $this->hooks();
     }
 
+    public function __destruct()
+    {
+        //$this->cleanUpIndexing();
+    }
+
+    /**
+     * A place for all class specific hooks and filters
+     */
     public function hooks()
     {
         add_action('admin_menu', [$this, 'pageSettings'], 1);
         add_filter('ep_pre_request_url', [$this, 'request'], 11, 5);
         add_action('moj_es_cron_hook', [$this, 'cleanUpIndexing']);
         add_action('wp_ajax_stats_load', [$this, 'getStatsHTML']);
-        add_action('http_api_debug', [$this, 'showResponse'], 10, 5);
+        add_action('http_api_debug', [$this, 'updateResponse'], 10, 5);
     }
 
     /**
@@ -89,6 +100,20 @@ class Index extends Admin
         return $request;
     }
 
+    /**
+     * Index management method.
+     * Given AWS limitations; this method makes decisions on how to index posts based on payload size.
+     * If the payload is small, it is appended to a bulk file for later indexing
+     * If the payload is large, it is sent as a single payload to ES
+     * If the payload is too large (exceeds AWS limits), a record of the failure is logged and indexing continues
+     * Once the bulk file reaches a predefined size, it is sent as a bulk payload to ES
+     * @param $request
+     * @param $failures
+     * @param $host
+     * @param $path
+     * @param $args
+     * @return string
+     */
     public function index($request, $failures, $host, $path, $args): string
     {
         if ($this->sendBulk($args['body'])) {
@@ -117,6 +142,9 @@ class Index extends Admin
     }
 
     /**
+     * See $this->index() for information
+     * Returning false from this method passes indexing back to EP, but only if the payload size is
+     * found not to be too large later on
      * @param $body
      * @return bool
      */
@@ -139,32 +167,53 @@ class Index extends Admin
             return false; // index individual file (normal)
         }
 
-        // add body to bodies if not too big
+        // add body to bodies
         $this->writeBodyToFile($body);
 
         $this->setStats($stats);
 
+        add_filter('ep_intercept_remote_request', [$this, 'interceptTrue']);
 
         if ($body_stored_size + $body_new_size > $this->payload_min) {
             // prepare interception
-            add_filter('ep_intercept_remote_request', [$this, 'interceptTrue']);
             add_filter('ep_do_intercept_request', [$this, 'requestIntercept'], 11, 4);
             return true;
         }
 
-        add_filter('ep_intercept_remote_request', [$this, 'interceptTrue']);
         add_filter('ep_do_intercept_request', [$this, 'requestInterceptFalsy'], 11, 4);
         return true;
     }
 
-    public function showResponse($response, $response_name, $requests_name, $parsed_args, $url)
+    /**
+     * A debug method used in development to store the response of an Elasticsearch request
+     * @param $response
+     * @param $response_name
+     * @param $requests_name
+     * @param $parsed_args
+     * @param $url
+     * @uses update_option()
+     *
+     * @uses str_replace()
+     */
+    public function updateResponse($response, $response_name, $requests_name, $parsed_args, $url)
     {
-        if (str_replace('intranet.local', '', $url) !== $url) {
+        // these entries represent a portion of the path in the URL that made the request
+        $allowed_paths = [
+            'intranet.local',
+            'intranet.dev'
+        ];
+
+        if (str_replace($allowed_paths, '', $url) !== $url) {
             update_option('_moj_es_index_debug', $this->debug('Response', $response));
         }
     }
 
-    public function writeBodyToFile($body)
+    /**
+     * Append a string to the end of a file and return the new length, or false on failure
+     * @param string $body
+     * @return false|int
+     */
+    public function writeBodyToFile(string $body)
     {
         $path = $this->importLocation() . 'moj-bulk-index-body.json';
         $handle = fopen($path, 'a');
@@ -174,6 +223,20 @@ class Index extends Admin
         return mb_strlen(file_get_contents($path));
     }
 
+    /**
+     * Make a bulk request to Elasticsearch and return the response, or WP_Error on failure
+     * Before this method is called, we tell EP not to make the request. By doing this we intercept the
+     * normal flow of indexing and make the request here. This allows us to collect and send 'size orientated' payloads.
+     *
+     * @param $request
+     * @param $query
+     * @param $args
+     * @param $failures
+     * @return array|WP_Error
+     * @uses add_filter('ep_do_intercept_request');
+     *
+     * @uses add_filter('ep_intercept_remote_request', true);
+     */
     public function requestIntercept($request, $query, $args, $failures)
     {
         $stats = $this->getStats();
@@ -181,26 +244,42 @@ class Index extends Admin
         $args['body'] = file_get_contents($this->importLocation() . 'moj-bulk-index-body.json') . "\n";
         $args['timeout'] = 120; // for all requests
 
+        unlink($this->importLocation() . 'moj-bulk-index-body.json');
+        $stats['bulk_body_size'] = 0;
+        $stats['last_url'] = ''; // clear for the request below
+        $this->setStats($stats); // first save body size after unlink
+
         // this doesn't run (anymore!) when the cron kicks it off.
+        // more importantly, it doesn't get any further than the next function call. Why?
         //  - what has changed?
-        //  - Data is available to make the request - true
-        //  -
+        //  - Data is available to make a successful request: tested = true
         $request = wp_remote_request($query['url'], $args);
 
         $stats['total_bulk_requests'] = $stats['total_bulk_requests'] ?? 0;
         $stats['total_bulk_requests']++;
-        $stats['bulk_body_size'] = 0;
         $stats['last_url'] = $query['url'];
-        $stats['status_code'] = wp_remote_retrieve_response_code($request);
-        $stats['message'] = wp_remote_retrieve_response_message($request);
-        $this->setStats($stats);
-
-        unlink($this->importLocation() . 'moj-bulk-index-body.json');
+        $this->setStats($stats); // next, save request params
 
         return $request;
     }
 
-    public function requestInterceptFalsy($request, $query, $args, $failures)
+    /**
+     * Intercept the normal flow of indexing and make a false request to Elasticsearch
+     * Returns a structured array in the form of a successful wp_remote_request().
+     *
+     * When body data is appended to the bulk file for sending later, this method is called to indicate to EP that a
+     * successful transmission to Elasticsearch was made. This allows normal processing to continue in EP
+     *
+     * @param $request
+     * @param $query
+     * @param $args
+     * @param $failures
+     * @return array
+     * @uses add_filter('ep_do_intercept_request');
+     *
+     * @uses add_filter('ep_intercept_remote_request', true);
+     */
+    public function requestInterceptFalsy($request, $query, $args, $failures): array
     {
         $stats = $this->getStats();
         $stats['total_stored_requests'] = $stats['total_stored_requests'] ?? 0;
@@ -219,7 +298,7 @@ class Index extends Admin
             'body' => file_get_contents(__DIR__ . '/../assets/mock.json'),
             'response' => array(
                 'code' => 200,
-                'message' => 'OK',
+                'message' => 'OK (falsy)',
             ),
             'cookies' => array(),
             'http_response' => [],
@@ -236,6 +315,7 @@ class Index extends Admin
     }
 
     /**
+     * Makes sure there's no data left in the bulk file once indexing has completed
      * @return bool
      */
     public function cleanUpIndexing()
@@ -257,14 +337,7 @@ class Index extends Admin
 
                 if (!$url || !$args) {
                     $stats['cleanup_error'] = 'Cleanup cannot run. URL or ARGS not available in stats array';
-                    $stat_error = true;
-                }
-
-                $this->requestIntercept(null, ['url' => $url], $args, null);
-
-                if ($stat_error) {
-                    $this->setStats($stats);
-
+                    $this->setStats();
                     wp_mail(
                         get_bloginfo('admin_email'),
                         'Search indexing errors have been found in ' . get_bloginfo('name'),
@@ -272,9 +345,19 @@ class Index extends Admin
                     );
                 }
 
+                $this->requestIntercept(null, ['url' => $url], $args, null);
+
+                $this->index_cleaned_up = true;
+
                 // now we are done, stop the cron hook from running:
                 $timestamp = wp_next_scheduled('moj_es_cron_hook');
                 wp_unschedule_event($timestamp, 'moj_es_cron_hook');
+
+                wp_mail(
+                    get_bloginfo('admin_email'),
+                    'Search indexing cleanup finished in ' . get_bloginfo('name'),
+                    'Woohoo'
+                );
 
                 return true;
             }
