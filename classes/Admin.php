@@ -29,21 +29,24 @@ class Admin extends Options
      * @var int size in bytes
      */
     public $payload_min = 20000000;
+
     /**
      * The maximum we allow for a custom created payload file
      * @var int size in bytes
      */
     public $payload_max = 25000000;
+
     /**
      * The absolute maximum for any single payload request
      * @var int size in bytes
      */
     public $payload_ep_max = 98000000;
+
     /**
-     * The current environment, assumed production if not present
-     * @var int size in bytes
+     * The current environment, assumed production (__construct) if not present
+     * @var string environment type [development|staging|production]
      */
-    public $env = 98000000;
+    public $env = '';
 
     public function __construct()
     {
@@ -59,17 +62,26 @@ class Admin extends Options
         $this->hooks();
     }
 
+    /**
+     * A place for all class specific hooks and filters
+     */
     public function hooks()
     {
-        add_action('admin_enqueue_scripts', [$this, 'enqueue']);
+        // page set up
+        add_action('admin_init', [$this, 'register']);
         add_action('admin_menu', [$this, 'settingsPage']);
+        add_action('admin_enqueue_scripts', [$this, 'enqueue']);
+        // ElasticPress
         add_action('ep_dashboard_start_index', [$this, 'clearStats']);
         add_action('ep_wp_cli_pre_index', [$this, 'clearStats']);
+        // MoJ
         add_action('moj_es_exec_index', [$this, 'scheduleIndexing']);
         add_filter('cron_schedules', [$this, 'addCronIntervals']);
-        add_action('admin_init', [$this, 'register']);
     }
 
+    /**
+     * A place for loading and managing class styles and scripts
+     */
     public function enqueue()
     {
         wp_enqueue_style('moj-es', plugins_url('../', __FILE__) . 'assets/css/main.css', []);
@@ -101,6 +113,9 @@ class Admin extends Options
         }
     }
 
+    /**
+     * Create the options page for the plugin
+     */
     public function settingsPage()
     {
         add_options_page(
@@ -113,7 +128,7 @@ class Admin extends Options
     }
 
     /**
-     * Set up the admin plugin page
+     * Set up the plugin options page
      */
     public function init()
     {
@@ -222,7 +237,7 @@ class Admin extends Options
             return $this->optionBulkIndex($options);
         }
 
-        // catch Bulk index action kill
+        // catch Bulk index action ~ kill
         if (isset($options['index_kill'])) {
             $process_id = exec('pgrep -u www-data php$');
             if ($process_id > 0) {
@@ -378,6 +393,14 @@ class Admin extends Options
         return $schedules;
     }
 
+    /**
+     * Utility:
+     * Takes a string in the form of camelCase or CamelCase and splits to individual words
+     * @example theQuickBrownFox = the Quick Brown Fox
+     * @example TheQuickBrownFox = The Quick Brown Fox
+     * @param $string
+     * @return string
+     */
     public function camelCaseToWords($string)
     {
         $regex = '/
@@ -399,7 +422,8 @@ class Admin extends Options
     }
 
     /**
-     * Calculate a human readable files size
+     * Utility:
+     * Calculate a human readable file size
      * @param $size
      * @return string
      */
@@ -417,6 +441,12 @@ class Admin extends Options
         return $file_size;
     }
 
+    /**
+     * Utility:
+     * Generate a non-unique random string
+     * @param int $length
+     * @return false|string
+     */
     public function rand($length = 10)
     {
         return substr(
@@ -431,16 +461,29 @@ class Admin extends Options
         );
     }
 
-    public function beginBackgroundIndex()
+    /**
+     * Start a destructive bulk index.
+     * Normally initialised by the plugins admin page and also the presence of a running schedule.
+     * If the schedule exists after execution, remove it to prevent any further index attempts.
+     * @return null
+     */
+    private function beginBackgroundIndex()
     {
         $this->clearStats();
         exec("wp elasticpress index --setup --per-page=1 --allow-root > /dev/null 2>&1 & echo $!;");
 
-        // now we have started, stop the cron hook from running:
+        // now we have started, stop the cron hook from running if it is present:
         $timestamp = wp_next_scheduled('moj_es_exec_index');
-        wp_unschedule_event($timestamp, 'moj_es_exec_index');
+        if ($timestamp) {
+            wp_unschedule_event($timestamp, 'moj_es_exec_index');
+        }
     }
 
+    /**
+     * Managed scheduling for a destructive bulk index
+     * Takes in to account the current env. and protects search behaviour for users on production.
+     * @return bool
+     */
     public function scheduleIndexing()
     {
         if ($this->env === 'production') {
