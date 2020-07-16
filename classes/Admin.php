@@ -447,7 +447,7 @@ class Admin extends Options
     private function beginBackgroundIndex()
     {
         $this->clearStats();
-        $pid = exec("wp elasticpress index --setup --per-page=1 --allow-root > /dev/null 2>&1 & echo $!;");
+        exec("wp elasticpress index --setup --per-page=1 --allow-root > /dev/null 2>&1 & echo $!;");
 
         // now we have started, stop the cron hook from running if it is present:
         $timestamp = wp_next_scheduled('moj_es_exec_index');
