@@ -24,9 +24,34 @@ class Index extends Admin
 
     private $index_cleaned_up = false;
 
+    /**
+     * The minimum payload size we create before sending to ES
+     * @var int size in bytes
+     */
+    public $payload_min = 53500000;
+
+    /**
+     * The maximum we allow for a custom created payload file
+     * @var int size in bytes
+     */
+    public $payload_max = 55000000;
+
+    /**
+     * The absolute maximum for any single payload request
+     * @var int size in bytes
+     */
+    public $payload_ep_max = 98000000;
+
+
     public function __construct()
     {
         parent::__construct();
+        if ($this->env === 'development') {
+            $this->payload_min = 6000000;
+            $this->payload_max = 8900000;
+            $this->payload_ep_max = 9900000;
+        }
+
         $this->hooks();
     }
 
@@ -244,8 +269,6 @@ class Index extends Admin
         $args['body'] = file_get_contents($this->importLocation() . 'moj-bulk-index-body.json') . "\n";
         $args['timeout'] = 120; // for all requests
 
-        unlink($this->importLocation() . 'moj-bulk-index-body.json');
-        $stats['bulk_body_size'] = 0;
         $stats['last_url'] = ''; // clear for the request below
         $this->setStats($stats); // first save body size after unlink
 
@@ -254,6 +277,9 @@ class Index extends Admin
         //  - what has changed?
         //  - Data is available to make a successful request: tested = true
         $request = wp_remote_request($query['url'], $args);
+
+        unlink($this->importLocation() . 'moj-bulk-index-body.json');
+        $stats['bulk_body_size'] = 0;
 
         $stats['total_bulk_requests'] = $stats['total_bulk_requests'] ?? 0;
         $stats['total_bulk_requests']++;

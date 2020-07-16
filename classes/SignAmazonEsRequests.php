@@ -48,6 +48,10 @@ class SignAmazonEsRequests
             $args['headers']['X-Amz-Date'] = $signed_request->getHeader('X-Amz-Date')[0];
         }
 
+        // increase timeout for good measure
+        $args['timeout'] = 120; // 2 minutes for all ES requests
+
+
         return $args;
     }
 }

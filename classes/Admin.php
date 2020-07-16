@@ -25,24 +25,6 @@ class Admin extends Options
     public $settings_registered = false;
 
     /**
-     * The minimum payload size we create before sending to ES
-     * @var int size in bytes
-     */
-    public $payload_min = 20000000;
-
-    /**
-     * The maximum we allow for a custom created payload file
-     * @var int size in bytes
-     */
-    public $payload_max = 25000000;
-
-    /**
-     * The absolute maximum for any single payload request
-     * @var int size in bytes
-     */
-    public $payload_ep_max = 98000000;
-
-    /**
      * The current environment, assumed production (__construct) if not present
      * @var string environment type [development|staging|production]
      */
@@ -51,11 +33,6 @@ class Admin extends Options
     public function __construct()
     {
         $this->env = env('WP_ENV') ?: 'production';
-        if ($this->env === 'development') {
-            $this->payload_min = 6000000;
-            $this->payload_max = 8900000;
-            $this->payload_ep_max = 9900000;
-        }
 
         parent::__construct();
 
