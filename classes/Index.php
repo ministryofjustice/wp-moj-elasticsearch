@@ -8,9 +8,7 @@ use function ElasticPress\Utils\is_indexing;
 /**
  * Class Index
  * @package MOJElasticSearch
- * @SuppressWarnings("unused")
- * @SuppressWarnings(PHPMD.TooManyPublicMethods)
- * @SuppressWarnings(PHPMD.ExitExpression)
+ * @SuppressWarnings(PHPMD)
  */
 class Index extends Admin
 {
@@ -55,11 +53,6 @@ class Index extends Admin
         $this->hooks();
     }
 
-    public function __destruct()
-    {
-        //$this->cleanUpIndexing();
-    }
-
     /**
      * A place for all class specific hooks and filters
      */
@@ -68,8 +61,8 @@ class Index extends Admin
         add_action('admin_menu', [$this, 'pageSettings'], 1);
         add_filter('ep_pre_request_url', [$this, 'request'], 11, 5);
         add_action('moj_es_cron_hook', [$this, 'cleanUpIndexing']);
+        add_action('plugins_loaded', [$this, 'cleanUpIndexingCheck']);
         add_action('wp_ajax_stats_load', [$this, 'getStatsHTML']);
-        add_action('http_api_debug', [$this, 'updateResponse'], 10, 5);
     }
 
     /**
@@ -210,30 +203,6 @@ class Index extends Admin
     }
 
     /**
-     * A debug method used in development to store the response of an Elasticsearch request
-     * @param $response
-     * @param $response_name
-     * @param $requests_name
-     * @param $parsed_args
-     * @param $url
-     * @uses update_option()
-     *
-     * @uses str_replace()
-     */
-    public function updateResponse($response, $response_name, $requests_name, $parsed_args, $url)
-    {
-        // these entries represent a portion of the path in the URL that made the request
-        $allowed_paths = [
-            'intranet.local',
-            'intranet.dev'
-        ];
-
-        if (str_replace($allowed_paths, '', $url) !== $url) {
-            update_option('_moj_es_index_debug', $this->debug('Response', $response));
-        }
-    }
-
-    /**
      * Append a string to the end of a file and return the new length, or false on failure
      * @param string $body
      * @return false|int
@@ -264,27 +233,21 @@ class Index extends Admin
      */
     public function requestIntercept($request, $query, $args, $failures)
     {
-        $stats = $this->getStats();
-
-        $args['body'] = file_get_contents($this->importLocation() . 'moj-bulk-index-body.json') . "\n";
+        $args['body'] = file_get_contents($this->importLocation() . 'moj-bulk-index-body.json');
         $args['timeout'] = 120; // for all requests
 
-        $stats['last_url'] = ''; // clear for the request below
-        $this->setStats($stats); // first save body size after unlink
-
-        // this doesn't run (anymore!) when the cron kicks it off.
-        // more importantly, it doesn't get any further than the next function call. Why?
-        //  - what has changed?
-        //  - Data is available to make a successful request: tested = true
         $request = wp_remote_request($query['url'], $args);
 
-        unlink($this->importLocation() . 'moj-bulk-index-body.json');
-        $stats['bulk_body_size'] = 0;
+        if (!is_wp_error($request)) {
+            $stats = $this->getStats();
+            unlink($this->importLocation() . 'moj-bulk-index-body.json');
+            $stats['bulk_body_size'] = 0;
 
-        $stats['total_bulk_requests'] = $stats['total_bulk_requests'] ?? 0;
-        $stats['total_bulk_requests']++;
-        $stats['last_url'] = $query['url'];
-        $this->setStats($stats); // next, save request params
+            $stats['total_bulk_requests'] = $stats['total_bulk_requests'] ?? 0;
+            $stats['total_bulk_requests']++;
+            $stats['last_url'] = $query['url'];
+            $this->setStats($stats); // next, save request params
+        }
 
         return $request;
     }
@@ -315,7 +278,7 @@ class Index extends Admin
         // remove body from overall payload for reporting
         unset($args['body']);
         $args['timeout'] = 120; // for all requests
-        $stats['last_args'] = json_encode($args);
+        $stats['last_args'] = $args;
         $this->setStats($stats);
 
         // mock response
@@ -358,17 +321,11 @@ class Index extends Admin
                 $stats = $this->getStats();
                 $url = $stats['last_url'] ?? null;
                 $args = $stats['last_args'] ?? null;
-                $args = (array)json_decode($args);
-                $stat_error = false;
 
                 if (!$url || !$args) {
                     $stats['cleanup_error'] = 'Cleanup cannot run. URL or ARGS not available in stats array';
-                    $this->setStats();
-                    wp_mail(
-                        get_bloginfo('admin_email'),
-                        'Search indexing errors have been found in ' . get_bloginfo('name'),
-                        $this->debug('Indexing Stats', $stats)
-                    );
+                    $this->setStats($stats);
+                    return false;
                 }
 
                 $this->requestIntercept(null, ['url' => $url], $args, null);
@@ -379,14 +336,19 @@ class Index extends Admin
                 $timestamp = wp_next_scheduled('moj_es_cron_hook');
                 wp_unschedule_event($timestamp, 'moj_es_cron_hook');
 
-                wp_mail(
-                    get_bloginfo('admin_email'),
-                    'Search indexing cleanup finished in ' . get_bloginfo('name'),
-                    'Woohoo'
-                );
-
                 return true;
             }
+        }
+
+        return false;
+    }
+
+    public function cleanUpIndexingCheck()
+    {
+        $force_clean_up = $this->options()['force_clean_up'] ?? null;
+        if ($force_clean_up) {
+            $this->updateOption('force_clean_up', null);
+            $this->cleanUpIndexing();
         }
     }
 
@@ -409,7 +371,8 @@ class Index extends Admin
             'storage_is_db' => [$this, 'storageIsDB'],
             'polling_delay' => [$this, 'pollingDelayField'],
             'latest_stats' => [$this, 'indexStatistics'],
-            'refresh_index' => [$this, 'indexButton']
+            'refresh_index' => [$this, 'indexButton'],
+            'force_clean_up' => [$this, 'forceCleanUp']
         ];
 
         // fill the sections
@@ -495,6 +458,21 @@ class Index extends Admin
         <?php
     }
 
+    public function forceCleanUp()
+    {
+        $option = $this->options();
+        $force_clean_up = $option['force_clean_up'] ?? null;
+        ?>
+        <p>Do we need to clean the indexing process up? This might be needed if Bulk Body Size is greater than 0</p>
+        <input
+            type="checkbox"
+            value="1"
+            name="<?= $this->optionName() ?>[force_clean_up]"
+            <?php checked('1', $force_clean_up) ?>
+        /> <small id="force_clean_up_indicator"><?= ($force_clean_up ? 'Yes, clean up' : 'No') ?></small>
+        <?php
+    }
+
     public function pollingDelayField()
     {
         $option = $this->options();
@@ -525,17 +503,16 @@ class Index extends Admin
                         Stop Indexing
                     </a></p>
                 </div>';
-        }/* else {
-            $output .= get_option('_moj_es_index_debug');
-        }*/
+        }
 
-        $output .= '<ul id="inner-indexing-stats"><div style="display:none">' . $this->rand(500) . '</div>';
+        $output .= '<ul id="inner-indexing-stats">';
         $total_files = $requests = '';
 
         foreach ($this->getStats() as $key => $stat) {
             if (strpos($key, 'last_') > -1) {
-                //continue;
+                continue;
             }
+
             if ($key === 'large_files') {
                 $large_file_count = count($stat);
                 $total_files = '<li>Large posts (skipped): we have found <strong>' .

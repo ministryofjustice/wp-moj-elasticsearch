@@ -121,6 +121,10 @@ jQuery(function ($) {
     $('input[name*="storage_is_db"]').on('click', function () {
         $('#storage_indicator').text(($(this).is(':checked') ? 'Yes, store in DB.' : 'No, write to disc.'));
     });
+
+    $('input[name*="force_clean_up"]').on('click', function () {
+        $('#force_clean_up_indicator').text(($(this).is(':checked') ? 'Yes, clean up.' : 'No.'));
+    });
 });
 
 /**
