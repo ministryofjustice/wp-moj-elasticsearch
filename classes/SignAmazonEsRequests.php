@@ -51,7 +51,6 @@ class SignAmazonEsRequests
         // increase timeout for good measure
         $args['timeout'] = 120; // 2 minutes for all ES requests
 
-
         return $args;
     }
 }
