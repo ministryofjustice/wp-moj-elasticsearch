@@ -18,6 +18,10 @@ class Query extends Admin
         add_action('pre_get_posts', [$this, 'searchFields'], 1);
     }
 
+    /**
+     * Add dashboard defined meta_keys to the searchable array
+     * @param $query
+     */
     public function searchFields($query)
     {
         if (!is_admin() && $query->is_main_query()) {
@@ -36,10 +40,24 @@ class Query extends Admin
     }
 
     /**
-     * @param bool $select_string
-     * @return array|string
+     * Makes a DB select query if meta_keys are available
+     * @return array|null
      */
-    public function getMetaFields($no_query = false)
+    public function getMetaFields()
+    {
+        global $wpdb;
+        $select = $this->getMetaFieldSelect();
+        if (empty($select)) {
+            return null;
+        }
+
+        return $wpdb->get_col($select);
+    }
+
+    /**
+     * @return string|null
+     */
+    public function getMetaFieldSelect()
     {
         $meta_fields = $this->options()['search_meta_fields'] ?? null;
         $likes = explode("\n", $meta_fields);
@@ -59,16 +77,7 @@ class Query extends Admin
             return null;
         }
 
-        $select_statement = "SELECT DISTINCT meta_key FROM wp_postmeta WHERE" . $like_string;
-
-        if ($no_query) {
-            return $select_statement;
-        }
-
-        global $wpdb;
-        return $wpdb->get_col(
-            $select_statement
-        );
+        return "SELECT DISTINCT meta_key FROM wp_postmeta WHERE" . $like_string;
     }
 
 
@@ -99,6 +108,9 @@ class Query extends Admin
         $this->createSections($group);
     }
 
+    /**
+     * The intro section for searchable meta fields
+     */
     public function queryIntro()
     {
         $heading = __('The section below gives', $this->text_domain);
@@ -107,6 +119,9 @@ class Query extends Admin
         echo '<div class="intro"><strong>' . $heading . '</strong><br>' . $description . '</div>';
     }
 
+    /**
+     * Outputs the content for the search meta field on our options page
+     */
     public function searchMetaFields()
     {
         $option = $this->options();
@@ -120,7 +135,7 @@ class Query extends Admin
             cols="50"><?= $search_meta_fields ?></textarea>
         <br>
         <p><strong>Syntax check</strong></p>
-        <pre><?= $this->getMetaFields(true) ?></pre>
+        <pre><?= $this->getMetaFieldSelect() ?></pre>
         <?php
     }
 }
