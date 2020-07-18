@@ -128,7 +128,7 @@ class ElasticPressHooks
          * */
         $mapping['settings']['analysis']['filter']['moj_es_plugin_synonyms'] = [
             'type' => 'synonym',
-            'synonyms_path' => 'analyzers/F11955120'
+            'synonyms_path' => 'analyzers/F124583324'
         ];
 
         // Create a custom analyzer we can add our own filters to as required
