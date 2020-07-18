@@ -19,6 +19,7 @@ use MOJElasticSearch\Admin;
 use MOJElasticSearch\Auth;
 use MOJElasticSearch\ElasticPressHooks;
 use MOJElasticSearch\Index;
+use MOJElasticSearch\Query;
 use MOJElasticSearch\ManageData;
 use MOJElasticSearch\SignAmazonEsRequests;
 
@@ -29,4 +30,5 @@ if (new Auth) {
     new ElasticPressHooks;
     new ManageData();
     new Index();
+    new Query();
 }
