@@ -1,4 +1,10 @@
+var MOJ = MOJ || {};
+
 jQuery(function ($) {
+    MOJ.ES = {
+        // we can use this global object in future for OOP
+    }
+
     /**
      * This function is a setter and getter. On set it updates the browser history and returns the pathname + search
      * part of the URL. If no key is provided the funstion returns false. If a key with no value has been given, and
@@ -137,3 +143,4 @@ function uuidv4() {
         c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
     );
 }
+
