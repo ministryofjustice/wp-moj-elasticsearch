@@ -113,7 +113,7 @@ class Query extends Admin
      */
     public function queryIntro()
     {
-        $heading = __('The section below gives', $this->text_domain);
+        $heading = __('The section below allows a certain amount of control over ES queries', $this->text_domain);
 
         $description = __('', $this->text_domain);
         echo '<div class="intro"><strong>' . $heading . '</strong><br>' . $description . '</div>';
