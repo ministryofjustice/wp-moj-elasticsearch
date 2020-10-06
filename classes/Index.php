@@ -2,6 +2,7 @@
 
 namespace MOJElasticSearch;
 
+use MOJElasticSearch\Alias as Alias;
 use WP_Error;
 use function ElasticPress\Utils\is_indexing;
 
@@ -19,8 +20,6 @@ class Index extends Admin
     use Settings, Debug;
 
     private $stat_output_echo = true;
-
-    private $index_cleaned_up = false;
 
     /**
      * The minimum payload size we create before sending to ES
@@ -40,17 +39,46 @@ class Index extends Admin
      */
     public $payload_ep_max = 98000000;
 
+    /**
+     * Cache the name of a bulk index route
+     * @var int size in bytes
+     */
+    public $index_name_current = '';
+
+    /**
+     * Cache the name of a bulk index route
+     * @var int size in bytes
+     */
+    public $index_name_new = null;
+
+    private $alias = null;
+    private $alias_first_run = false;
 
     public function __construct()
     {
         parent::__construct();
+
+        // construct alias
+        $this->alias = new Alias();
+
+        // smaller server on dev
         if ($this->env === 'development') {
             $this->payload_min = 6000000;
             $this->payload_max = 8900000;
             $this->payload_ep_max = 9900000;
         }
 
-        $this->hooks();
+        $this->index_name_current = get_option('_moj_es_index_name', null);
+
+        if (!$this->index_name_current) {
+            $this->index_name_current = $this->getIndexName();
+            update_option('_moj_es_index_name', $this->index_name_current);
+
+            $this->alias_first_run = true;
+            $this->alias->add($this->index_name_current);
+        }
+
+        self::hooks();
     }
 
     /**
@@ -63,6 +91,8 @@ class Index extends Admin
         add_action('moj_es_cron_hook', [$this, 'cleanUpIndexing']);
         add_action('plugins_loaded', [$this, 'cleanUpIndexingCheck']);
         add_action('wp_ajax_stats_load', [$this, 'getStatsHTML']);
+        add_filter('ep_index_name', [$this, 'indexNames'], 11, 1);
+        add_filter('ep_is_indexing', [$this, 'returnFalse'], 10, 1);
     }
 
     /**
@@ -93,6 +123,7 @@ class Index extends Admin
 
         $disallow_paths = [
             '/_search',
+            '/_aliases',
             '_stats',
             '_ingest/pipeline',
         ];
@@ -112,10 +143,67 @@ class Index extends Admin
         }
 
         if (isset($args['method']) && in_array($args['method'], $allow_methods)) {
+            remove_filter('ep_is_indexing', [$this, 'returnFalse'], 10);
             $request = $this->index($request, $failures, $host, $path, $args);
+            add_filter('ep_is_indexing', [$this, 'returnFalse'], 10, 1);
         }
 
         return $request;
+    }
+
+    /**
+     *
+     * @param string $alias_name
+     * @return string
+     */
+    public function indexNames(string $alias_name): string
+    {
+        if (!$this->isIndexing()) {
+            return $alias_name;
+        }
+
+        return $this->getIndexName();
+    }
+
+    private function getIndexName()
+    {
+        if ($this->isIndexing()) {
+            return $this->index_name_current;
+        }
+
+        if ($this->index_name_new) {
+            return $this->index_name_new;
+        }
+
+        // index names
+        $index_names = [
+            'mythical' => [
+                'afanc', 'alphyn', 'amphiptere', 'basilisk', 'bonnacon', 'cockatrice', 'crocotta', 'dragon', 'griffin',
+                'hippogriff', 'mandragora', 'manticore', 'melusine', 'ouroboros', 'salamander', 'woodwose'
+            ]
+        ];
+
+        $new_index_names = array_rand($index_names); // string
+        $new_index_key = array_rand($index_names[$new_index_names]); // int
+        $new_index = $index_names[$new_index_names][$new_index_key];
+
+        if ($new_index === $this->index_name_current) {
+            $new_index = $this->getIndexName();
+        }
+
+        $new_index = $this->alias->name . "." . $new_index;
+
+        if (!$this->index_name_current) {
+            $this->index_name_current = $new_index;
+        }
+
+        update_option('_moj_es_new_index_name', $new_index);
+        $this->index_name_new = $new_index;
+
+        echo $this->debug('CURRENT INDEX NAME', $this->index_name_current);
+        echo $this->debug('NEW INDEX NAME', $new_index);
+
+        return $new_index;
     }
 
     /**
@@ -304,12 +392,26 @@ class Index extends Admin
     }
 
     /**
+     * Method needed to remove_filter
+     * @return bool
+     */
+    public function returnFalse()
+    {
+        return false;
+    }
+
+    /**
      * Makes sure there's no data left in the bulk file once indexing has completed
      * @return bool
      */
     public function cleanUpIndexing()
     {
-        if (is_indexing()) {
+        $result = $this->alias->add('intranet.local.woodwose');
+        if (is_wp_error($result)) {
+            $this->debug('WP ERROR', $result);
+        }
+
+        if ($this->isIndexing()) {
             return false;
         }
 
@@ -328,9 +430,15 @@ class Index extends Admin
                     return false;
                 }
 
-                $this->requestIntercept(null, ['url' => $url], $args, null);
+                // local function to convert object to array
+                $toArray = function ($x) use (&$toArray) {
+                    return is_scalar($x) ? $x : array_map($toArray, (array)$x);
+                };
 
-                $this->index_cleaned_up = true;
+                $this->requestIntercept(null, ['url' => $url], $toArray($args), null);
+
+                // update where the alias points to
+                $this->alias->update($this->index_name_new, $this->index_name_current);
 
                 // now we are done, stop the cron hook from running:
                 $timestamp = wp_next_scheduled('moj_es_cron_hook');
@@ -490,7 +598,7 @@ class Index extends Admin
     public function indexStatisticsAjax()
     {
         $output = '';
-        if (is_indexing()) {
+        if ($this->isIndexing()) {
             $output .= '<div class="notice notice-warning moj-es-stats-index-notice">
                     <p><strong>Indexing is currently active</strong>
                     <button name="moj_es_settings[index_kill]" value="1" class="button-primary kill_index_button"
@@ -552,5 +660,10 @@ class Index extends Admin
 
         echo json_encode($stats);
         die();
+    }
+
+    public function isIndexing(): bool
+    {
+        return get_transient('ep_wpcli_sync');
     }
 }

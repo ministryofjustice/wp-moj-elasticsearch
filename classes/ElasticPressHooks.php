@@ -11,8 +11,15 @@ namespace MOJElasticSearch;
  */
 class ElasticPressHooks
 {
+    /**
+     * Cache the index name
+     * @var string
+     */
+    private $alias_name = '';
+
     public function __construct()
     {
+        $this->alias_name = get_option('_moj_es_alias_name', '');
         $this->hooks();
     }
 
@@ -24,7 +31,7 @@ class ElasticPressHooks
     {
         add_filter('ep_elasticsearch_plugins', [$this, 'filterPlugins']);
         add_filter('ep_allowed_documents_ingest_mime_types', [$this, 'filterMimeTypes']);
-        add_filter('ep_index_name', [$this, 'indexName'], 10, 1);
+        add_filter('ep_index_name', [$this, 'aliasName'], 10, 1);
         add_filter('ep_config_mapping', [$this, 'mapCustomConfig'], 10, 1);
         add_filter('ep_config_mapping_request', [$this, 'mapRequest'], 10, 1);
     }
@@ -70,32 +77,39 @@ class ElasticPressHooks
     }
 
     /**
-     * Return index name with mods. added
+     * MoJ ES uses index aliases rather than static index names. We do this to manage indexing more effectively
+     * Also, using aliases allows us to keep front end searches routed through Elasticsearch
+     *
+     * Produces a meaningful alias name that points to generic indexes.
      *
      * @param string
      * @return string
      *
      * @uses str_replace()
      */
-    public function indexName(string $index_name): string
+    public function aliasName(string $index_name): string
     {
-        $search = [
-            'dockerwp',
-            'devwp',
-            'stagingwp',
-            'justicegovukwp', // intranet specific
-            'dsdiowp'
-        ];
+        if (empty($this->alias_name)) {
+            // local, dev, and staging + alias clean up
+            $search = ['dockerwp', 'devwp', 'stagingwp', 'dsdiowp', '-post-1', '-term-1', '-user-1'];
 
-        $replace = [
-            '.local',
-            '.dev',
-            '.staging',
-            '.production', // intranet specific
-            ''
-        ];
+            // track the use of our development environments, remove everything else...
+            $replace = ['.local', '.dev', '.staging', ''];
 
-        return str_replace($search, $replace, $index_name);
+            $index_name = str_replace($search, $replace, $index_name);
+
+            // tag the live index
+            $search = ['justicegovukwp'];
+            $replace = ['.production'];
+            $alias = str_replace($search, $replace, $index_name);
+
+            // intranet.local
+            // intranet.dev, etc.
+            $this->alias_name = $alias;
+            update_option('_moj_es_alias_name', $alias);
+        }
+
+        return $this->alias_name;
     }
 
     /**

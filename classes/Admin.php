@@ -30,6 +30,13 @@ class Admin extends Options
      */
     public $env = '';
 
+    /**
+     * Use the method isMojIndexing() to determine indexing instead
+     * Did the index button in our plugin get pushed?
+     * @var int size in bytes
+     */
+    protected $is_moj_indexing = false;
+
     public function __construct()
     {
         $this->env = env('WP_ENV') ?: 'production';
@@ -373,10 +380,10 @@ class Admin extends Options
     /**
      * Utility:
      * Takes a string in the form of camelCase or CamelCase and splits to individual words
-     * @example theQuickBrownFox = the Quick Brown Fox
-     * @example TheQuickBrownFox = The Quick Brown Fox
      * @param $string
      * @return string
+     * @example theQuickBrownFox = the Quick Brown Fox
+     * @example TheQuickBrownFox = The Quick Brown Fox
      */
     public function camelCaseToWords($string)
     {
@@ -447,6 +454,7 @@ class Admin extends Options
     private function beginBackgroundIndex()
     {
         $this->clearStats();
+        update_option('_moj_es_bulk_index_active', true);
         exec("wp elasticpress index --setup --per-page=1 --allow-root > /dev/null 2>&1 & echo $!;");
 
         // now we have started, stop the cron hook from running if it is present:
@@ -472,7 +480,7 @@ class Admin extends Options
                 $this->beginBackgroundIndex();
                 return true;
             }
-            return false;
+            return null;
         }
 
         $this->beginBackgroundIndex();
