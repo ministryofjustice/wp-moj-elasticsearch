@@ -7,11 +7,12 @@ namespace MOJElasticSearch;
  * @package MOJElasticSearch
  */
 
-use MOJElasticSearch\Admin;
 
 class ElasticSearch
 {
     use Debug;
+
+    public $text_domain = 'wp-moj-elasticsearch';
 
     public function __construct()
     {

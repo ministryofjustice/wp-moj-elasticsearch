@@ -41,18 +41,21 @@ class Index extends Admin
 
     /**
      * Cache the name of a bulk index route
-     * @var int size in bytes
+     * @var string|null name
      */
     public $index_name_current = '';
 
     /**
-     * Cache the name of a bulk index route
-     * @var int size in bytes
+     * Cache the NEW name of a bulk index route
+     * @var string|null name
      */
     public $index_name_new = null;
 
-    private $alias = null;
-    private $alias_first_run = false;
+    /**
+     * Alias object
+     * @var \MOJElasticSearch\Alias
+     */
+    private $alias;
 
     public function __construct()
     {
@@ -68,15 +71,9 @@ class Index extends Admin
             $this->payload_ep_max = 9900000;
         }
 
-        $this->index_name_current = get_option('_moj_es_index_name', null);
+        $this->index_name_current = get_option('_moj_es_index_name');
 
-        if (!$this->index_name_current) {
-            $this->index_name_current = $this->getIndexName();
-            update_option('_moj_es_index_name', $this->index_name_current);
-
-            $this->alias_first_run = true;
-            $this->alias->add($this->index_name_current);
-        }
+        $this->delete('intranet.local.manticore');
 
         self::hooks();
     }
@@ -92,7 +89,7 @@ class Index extends Admin
         add_action('plugins_loaded', [$this, 'cleanUpIndexingCheck']);
         add_action('wp_ajax_stats_load', [$this, 'getStatsHTML']);
         add_filter('ep_index_name', [$this, 'indexNames'], 11, 1);
-        add_filter('ep_is_indexing', [$this, 'returnFalse'], 10, 1);
+        add_filter('ep_index_health_stats_indices', [$this, 'healthStatsIndex'], 10, 1);
     }
 
     /**
@@ -106,10 +103,16 @@ class Index extends Admin
      */
     public function request($request, $failures, $host, $path, $args): string
     {
-        // reset intercept
+        // reset intercept for normal requests.
         remove_filter('ep_intercept_remote_request', [$this, 'interceptTrue']);
         remove_filter('ep_do_intercept_request', [$this, 'requestIntercept'], 11);
         remove_filter('ep_do_intercept_request', [$this, 'requestInterceptFalsy'], 11);
+
+        // do not disturb searching
+        if (str_replace('/_search', '', $path) != $path) {
+            // a search is being performed - get the alias, standardise the URL.
+            return $host . $this->alias->name . '/_search';
+        }
 
         // schedule a task to clean up the index once it has finished
         if (!wp_next_scheduled('moj_es_cron_hook')) {
@@ -122,7 +125,6 @@ class Index extends Admin
         ];
 
         $disallow_paths = [
-            '/_search',
             '/_aliases',
             '_stats',
             '_ingest/pipeline',
@@ -143,15 +145,16 @@ class Index extends Admin
         }
 
         if (isset($args['method']) && in_array($args['method'], $allow_methods)) {
-            remove_filter('ep_is_indexing', [$this, 'returnFalse'], 10);
             $request = $this->index($request, $failures, $host, $path, $args);
-            add_filter('ep_is_indexing', [$this, 'returnFalse'], 10, 1);
         }
 
         return $request;
     }
 
     /**
+     * This method fires after the alias has been set in \ElasticPressHooks
+     * If the system is currently indexing, the alias is returned.
+     * Hooked into filter 'ep_index_name'
      *
      * @param string $alias_name
      * @return string
@@ -165,43 +168,55 @@ class Index extends Admin
         return $this->getIndexName();
     }
 
-    private function getIndexName()
+    /**
+     * Get the new name for building a fresh index
+     * Hooked into filter 'ep_index_name' via $this->indexNames()
+     *
+     * @return string
+     */
+    private function getIndexName(): string
     {
-        if ($this->isIndexing()) {
-            return $this->index_name_current;
+        if (!empty($this->index_name_new) && $this->index_name_new === $this->index_name_current) {
+            $this->index_name_new = null;
         }
 
-        if ($this->index_name_new) {
+        if (!empty($this->index_name_new) || !empty(($this->index_name_new = get_option('_moj_es_new_index_name')))) {
             return $this->index_name_new;
         }
+
+        echo $this->debug("CURRENT Index", $this->index_name_current);
+        echo $this->debug("NEW Index", $this->index_name_new);
 
         // index names
         $index_names = [
             'mythical' => [
                 'afanc', 'alphyn', 'amphiptere', 'basilisk', 'bonnacon', 'cockatrice', 'crocotta', 'dragon', 'griffin',
                 'hippogriff', 'mandragora', 'manticore', 'melusine', 'ouroboros', 'salamander', 'woodwose'
+            ],
+            'knight' => [
+                'bagdemagus', 'bedivere', 'bors', 'brunor', 'cliges', 'caradoc', 'dagonet', 'daniel', 'dinadan',
+                'galahad', 'galehaut', 'geraint', 'griflet', 'lamorak', 'lancelot', 'lanval', 'lionel', 'moriaen',
+                'palamedes', 'pelleas', 'pellinore', 'percival', 'sagramore', 'tristan'
             ]
         ];
 
         $new_index_names = array_rand($index_names); // string
         $new_index_key = array_rand($index_names[$new_index_names]); // int
-        $new_index = $index_names[$new_index_names][$new_index_key];
+        $new_index = $index_names[$new_index_names][$new_index_key]; // string
 
         if ($new_index === $this->index_name_current) {
             $new_index = $this->getIndexName();
         }
 
+        // intranet.local.basilisk
         $new_index = $this->alias->name . "." . $new_index;
 
+        // first run
         if (!$this->index_name_current) {
-            $this->index_name_current = $new_index;
+            update_option('_moj_es_index_name', $new_index);
         }
 
         update_option('_moj_es_new_index_name', $new_index);
-        $this->index_name_new = $new_index;
-
-        echo $this->debug('CURRENT INDEX NAME', $this->index_name_current);
-        echo $this->debug('NEW INDEX NAME', $new_index);
 
         return $new_index;
     }
@@ -372,7 +387,7 @@ class Index extends Admin
         // mock response
         return array(
             'headers' => array(),
-            'body' => file_get_contents(__DIR__ . '/../assets/mock.json'),
+            'body' => file_get_contents(__DIR__ . '/../assets/json/mock.json'),
             'response' => array(
                 'code' => 200,
                 'message' => 'OK (falsy)',
@@ -392,25 +407,11 @@ class Index extends Admin
     }
 
     /**
-     * Method needed to remove_filter
-     * @return bool
-     */
-    public function returnFalse()
-    {
-        return false;
-    }
-
-    /**
      * Makes sure there's no data left in the bulk file once indexing has completed
      * @return bool
      */
     public function cleanUpIndexing()
     {
-        $result = $this->alias->add('intranet.local.woodwose');
-        if (is_wp_error($result)) {
-            $this->debug('WP ERROR', $result);
-        }
-
         if ($this->isIndexing()) {
             return false;
         }
@@ -430,15 +431,15 @@ class Index extends Admin
                     return false;
                 }
 
-                // local function to convert object to array
+                // local function ensure object is array
                 $toArray = function ($x) use (&$toArray) {
                     return is_scalar($x) ? $x : array_map($toArray, (array)$x);
                 };
 
                 $this->requestIntercept(null, ['url' => $url], $toArray($args), null);
 
-                // update where the alias points to
-                $this->alias->update($this->index_name_new, $this->index_name_current);
+                // Poll for completion
+                $this->alias->pollForCompletion();
 
                 // now we are done, stop the cron hook from running:
                 $timestamp = wp_next_scheduled('moj_es_cron_hook');
@@ -451,6 +452,9 @@ class Index extends Admin
         return false;
     }
 
+    /**
+     * Manual clean of index process
+     */
     public function cleanUpIndexingCheck()
     {
         $force_clean_up = $this->options()['force_clean_up'] ?? null;
@@ -476,16 +480,21 @@ class Index extends Admin
 
         // define fields
         $fields_index = [
+            'latest_stats' => [$this, 'indexStatistics']
+        ];
+
+        $fields_index_management = [
             'storage_is_db' => [$this, 'storageIsDB'],
-            'polling_delay' => [$this, 'pollingDelayField'],
-            'latest_stats' => [$this, 'indexStatistics'],
-            'refresh_index' => [$this, 'indexButton'],
+            'build_index' => [$this, 'indexButton'],
+            'refresh_rate' => [$this, 'pollingDelayField'],
+            'force_WP_query' => [$this, 'forceWPQuery'],
             'force_clean_up' => [$this, 'forceCleanUp']
         ];
 
         // fill the sections
         Admin::$sections[$group] = [
-            $this->section([$this, 'indexStatisticsIntro'], $fields_index)
+            $this->section([$this, 'indexStatisticsIntro'], $fields_index),
+            $this->section([$this, 'indexManagementIntro'], $fields_index_management)
         ];
 
         $this->createSections($group);
@@ -523,6 +532,14 @@ class Index extends Admin
         echo '<div class="intro"><strong>' . $heading . '</strong><br>' . $description . '</div>';
     }
 
+    public function indexManagementIntro()
+    {
+        $heading = __('Manage indexing options', $this->text_domain);
+
+        $description = __('', $this->text_domain);
+        echo '<div class="intro"><strong>' . $heading . '</strong><br>' . $description . '</div>';
+    }
+
     public function indexButton()
     {
         $description = __(
@@ -537,15 +554,15 @@ class Index extends Admin
             </p>
             <a class="button-primary index_pre_link"
                title="Are you sure?">
-                I'm ready to refresh the index... GO!
+                I'm ready to rebuild the index... GO!
             </a>
         </div>
         <button name='<?= $this->optionName() ?>[index_button]' class="button-primary index_button" disabled="disabled">
-            Destroy index and refresh
+            Build new index
         </button>
         <a href="#TB_inline?&width=400&height=150&inlineId=my-content-id" class="button-primary thickbox"
-           title="Refresh Elasticsearch Index">
-            Destroy index and refresh
+           title="Rebuild Elasticsearch Index">
+            Build new index
         </a>
         <p><?= $description ?></p>
         <?php
@@ -581,14 +598,37 @@ class Index extends Admin
         <?php
     }
 
+    public function forceWPQuery()
+    {
+        $option = $this->options();
+        $force_wp_query = $option['force_WP_query'] ?? null;
+        ?>
+        <p>Has something gone wrong with Elasticsearch? Check this option to allow ElasticPress to use WP Query</p>
+        <input
+            type="checkbox"
+            value="1"
+            name="<?= $this->optionName() ?>[force_WP_query]"
+            <?php checked('1', $force_wp_query) ?>
+        /> <small
+        id="force_wp_query_indicator"><?= ($force_wp_query ? 'Yes, force WP Query while indexing' : 'No') ?></small>
+
+        <small style="font-size: 0.85rem"><br>
+            <br>Although very rare, we may need to override the default behaviour of querying by alias. <br>
+            Out of the box, we prevent ElasticPress from using WP Query on front end searches while<br>
+            indexing. Selecting this option will allow ElasticPress to fallback to WP Query.<br>
+            Useful in the event of catastrophic failure, such as an index being removed or emptied by accident.
+        </small>
+        <?php
+    }
+
     public function pollingDelayField()
     {
         $option = $this->options();
-        $key = 'polling_delay';
+        $key = 'refresh_rate';
         ?>
         <input type="text" value="<?= $option[$key] ?? 3 ?>" name="<?= $this->optionName() ?>[<?= $key ?>]"/>
         <small>Seconds</small>
-        <p>This setting affects the amount of time Latest Stats (below) is refreshed.</p>
+        <p>This setting affects the amount of time Latest Stats (above) is refreshed.</p>
         <script>
             var mojESPollingTime = <?= $option[$key] ?? 3 ?>
         </script>
@@ -662,8 +702,8 @@ class Index extends Admin
         die();
     }
 
-    public function isIndexing(): bool
+    public static function delete($index)
     {
-        return get_transient('ep_wpcli_sync');
+        wp_safe_remote_request(get_option('EP_HOST') . $index, ['method' => 'DELETE']);
     }
 }

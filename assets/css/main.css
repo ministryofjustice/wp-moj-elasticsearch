@@ -6,6 +6,10 @@ a.nav-tab:focus {
     display: none
 }
 
+.moj-es .submit .button {
+    display: none;
+}
+
 .moj-es h2 {
     color: #0d8730
 }

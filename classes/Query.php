@@ -16,6 +16,11 @@ class Query extends Admin
     {
         add_action('admin_menu', [$this, 'pageSettings'], 2);
         add_action('pre_get_posts', [$this, 'searchFields'], 1);
+
+        $force_wp_query = $this->options()['force_WP_query'] ?? false;
+        if (!$force_wp_query) {
+            add_filter('ep_is_indexing', [$this, 'returnFalse'], 10, 1);
+        }
     }
 
     /**
@@ -137,5 +142,14 @@ class Query extends Admin
         <p><strong>Syntax check</strong></p>
         <pre><?= $this->getMetaFieldSelect() ?></pre>
         <?php
+    }
+
+    /**
+     * Method needed to remove_filter
+     * @return bool
+     */
+    public function returnFalse()
+    {
+        return false;
     }
 }

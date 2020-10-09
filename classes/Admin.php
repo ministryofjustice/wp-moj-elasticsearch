@@ -17,7 +17,7 @@ use function ElasticPress\Utils\is_indexing;
  */
 class Admin extends Options
 {
-    use Debug;
+    use Debug, Settings;
 
     public $text_domain = 'wp-moj-elasticsearch';
     public static $tabs = [];
@@ -54,6 +54,7 @@ class Admin extends Options
         // page set up
         add_action('admin_init', [$this, 'register']);
         add_action('admin_menu', [$this, 'settingsPage']);
+        add_action('admin_menu', [$this, 'pageSettings'], 1);
         add_action('admin_enqueue_scripts', [$this, 'enqueue']);
         // ElasticPress
         add_action('ep_dashboard_start_index', [$this, 'clearStats']);
@@ -233,6 +234,10 @@ class Admin extends Options
                         'success'
                     );
 
+                    // flag that index was stopped manually
+                    // flag expires after 5 minutes
+                    set_transient('moj_es_index_force_stopped', true, 300);
+
                     return $options;
                 }
             }
@@ -274,7 +279,7 @@ class Admin extends Options
 
         // check now in case we need to run.
         if ($this->scheduleIndexing()) {
-            self::settingNotice('Bulk indexing has started.', 'bulk-warning', 'success');
+            self::settingNotice('Bulk indexing has been scheduled.', 'bulk-warning', 'success');
             return $options;
         }
 
@@ -398,6 +403,15 @@ class Admin extends Options
         if (is_array($words)) {
             $string = '';
             for ($i = 0; $i < $count; ++$i) {
+                if ($words[$i] === 'MOJ') {
+                    $words[$i] = 'MoJ';
+                }
+                if ($words[$i] === 'Wp') {
+                    $words[$i] = 'WP';
+                }
+                if ($words[$i] === 'Colon') {
+                    $words[$i] = ': ';
+                }
                 $string .= $words[$i] . " ";
             }
         }
@@ -475,7 +489,7 @@ class Admin extends Options
             // on production, prevent bulk indexes in the day
             // if requested between 7.30am-12pm, schedule a task to launch after midnight
             $prod_window_start = '00:00';
-            $prod_window_stop = '07:30';
+            $prod_window_stop = '03:30';
             if (time() > strtotime($prod_window_start) && time() < strtotime($prod_window_stop)) {
                 $this->beginBackgroundIndex();
                 return true;
@@ -485,5 +499,79 @@ class Admin extends Options
 
         $this->beginBackgroundIndex();
         return true;
+    }
+
+    public function isSearch($path)
+    {
+        if (str_replace('/_search', '', $path) != $path) {
+            return true;
+        }
+
+        return false;
+    }
+
+    public function isIndexing(): bool
+    {
+        return get_transient('ep_wpcli_sync');
+    }
+
+    /**
+     * This method is quite literally a space saving settings method
+     *
+     * Create your tab by adding to the $tabs global array with a label as the value
+     * Configure a section with fields for that tab as arrays by adding to the $sections global array.
+     *
+     * @SuppressWarnings(PHPMD)
+     */
+    public function pageSettings()
+    {
+        // define section (group) and tabs
+        $group = 'home';
+        Admin::$tabs[$group] = 'Welcome';
+
+        // define fields
+        $fields_intro = [
+            'introduction' => [$this, 'homeIntroduction']
+        ];
+
+        $fields_credits = [
+            'credits' => [$this, 'teamCredits']
+        ];
+
+        // fill the sections
+        Admin::$sections[$group] = [
+            $this->section([$this, 'guidanceColonWpMOJElasticsearch'], [])
+        ];
+
+        $this->createSections($group);
+    }
+
+    public function guidanceColonWpMOJElasticsearch()
+    {
+        $heading = __('Welcome to the settings console for interacting with AWS Elasticsearch', $this->text_domain);
+        $description = __('This plugin has been created to interface directly with the popular plugin ElasticPress, provided by the company 10up', $this->text_domain);
+
+        echo '<div class="intro"><strong>' . $heading . '</strong><br>' . $description . '</div>
+            <h3>Enhancements and Features</h3>
+            <h4>Enhancements</h4>
+            <ul>
+                <li>Enhancement here</li>
+                <li>Enhancement here</li>
+            </ul>
+            <h4>Features</h4>
+            <ul>
+                <li>Feature here</li>
+                <li>Feature here</li>
+            </ul>';
+    }
+
+    public function homeIntroduction()
+    {
+        echo '';
+    }
+
+    public function teamCredits()
+    {
+        echo '';
     }
 }
