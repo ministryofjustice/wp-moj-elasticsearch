@@ -33,7 +33,7 @@ class ManageData extends Admin
     {
         // define section (group) and tabs
         $group = 'manage_data';
-        Admin::$tabs[$group] = 'EP Configurations';
+        Page::$tabs[$group] = 'EP Configurations';
 
         // define fields
         $fields_weights = [
@@ -42,7 +42,7 @@ class ManageData extends Admin
         ];
 
         // fill the sections
-        Admin::$sections[$group] = [
+        Page::$sections[$group] = [
             $this->section([$this, 'manageWeightingIntro'], $fields_weights)
         ];
 

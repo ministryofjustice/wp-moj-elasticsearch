@@ -23,6 +23,10 @@ use MOJElasticSearch\Query;
 use MOJElasticSearch\ManageData;
 use MOJElasticSearch\SignAmazonEsRequests;
 
+// settings
+
+use MOJElasticSearch\Settings\IndexSettings;
+
 if (new Auth) {
     new Options;
     new Admin;
@@ -31,4 +35,8 @@ if (new Auth) {
     new ManageData();
     new Index();
     new Query();
+
+    // settings
+    new Page();
+    new IndexSettings();
 }

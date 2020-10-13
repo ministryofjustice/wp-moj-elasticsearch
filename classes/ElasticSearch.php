@@ -20,7 +20,7 @@ class ElasticSearch
 
     public static function canRun()
     {
-        $critical_option = 'moj_es'; //Admin::options('moj_es');
+        $critical_option = 'moj_es'; //Page::options('moj_es');
 
         # host
         if (!isset($critical_option['host']) || empty($critical_option['host'])) {

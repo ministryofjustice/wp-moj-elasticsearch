@@ -2,22 +2,23 @@
 
 namespace MOJElasticSearch;
 
-use MOJElasticSearch\Alias as Alias;
 use WP_Error;
-use function ElasticPress\Utils\is_indexing;
+use MOJElasticSearch\Settings\Page;
+use MOJElasticSearch\Settings\IndexSettings;
+use MOJElasticSearch\Traits\Debug;
 
 /**
  * Class Index
  * @package MOJElasticSearch
  * @SuppressWarnings(PHPMD)
  */
-class Index extends Admin
+class Index extends Page
 {
     /**
      * This class requires settings fields in the plugins dashboard.
      * Include the Settings trait
      */
-    use Settings, Debug;
+    use Debug;
 
     private $stat_output_echo = true;
 
@@ -53,19 +54,31 @@ class Index extends Admin
 
     /**
      * Alias object
-     * @var \MOJElasticSearch\Alias
+     * @var Alias
      */
     private $alias;
+
+    /**
+     * Admin object
+     * @var Admin
+     */
+    private $admin;
+
+    /**
+     * @var IndexSettings
+     */
+    private $settings;
 
     public function __construct()
     {
         parent::__construct();
 
-        // construct alias
+        // construct
         $this->alias = new Alias();
+        $this->admin = new Admin();
 
         // smaller server on dev
-        if ($this->env === 'development') {
+        if ($this->admin->env === 'development') {
             $this->payload_min = 6000000;
             $this->payload_max = 8900000;
             $this->payload_ep_max = 9900000;
@@ -73,7 +86,7 @@ class Index extends Admin
 
         $this->index_name_current = get_option('_moj_es_index_name');
 
-        $this->delete('intranet.local.manticore');
+        $this->settings = new IndexSettings();
 
         self::hooks();
     }
@@ -83,7 +96,6 @@ class Index extends Admin
      */
     public function hooks()
     {
-        add_action('admin_menu', [$this, 'pageSettings'], 1);
         add_filter('ep_pre_request_url', [$this, 'request'], 11, 5);
         add_action('moj_es_cron_hook', [$this, 'cleanUpIndexing']);
         add_action('plugins_loaded', [$this, 'cleanUpIndexingCheck']);
@@ -161,7 +173,7 @@ class Index extends Admin
      */
     public function indexNames(string $alias_name): string
     {
-        if (!$this->isIndexing()) {
+        if (!$this->admin->isIndexing()) {
             return $alias_name;
         }
 
@@ -281,7 +293,7 @@ class Index extends Admin
             );
         }
 
-        $stats['bulk_body_size'] = $this->humanFileSize($body_stored_size);
+        $stats['bulk_body_size'] = $this->admin->humanFileSize($body_stored_size);
 
         // payload maybe too big?
         if ($body_stored_size + $body_new_size > $this->payload_max) {
@@ -412,7 +424,7 @@ class Index extends Admin
      */
     public function cleanUpIndexing()
     {
-        if ($this->isIndexing()) {
+        if ($this->admin->isIndexing()) {
             return false;
         }
 
@@ -464,239 +476,10 @@ class Index extends Admin
         }
     }
 
-    /**
-     * This method is quite literally a space saving settings method
-     *
-     * Create your tab by adding to the $tabs global array with a label as the value
-     * Configure a section with fields for that tab as arrays by adding to the $sections global array.
-     *
-     * @SuppressWarnings(PHPMD)
-     */
-    public function pageSettings()
-    {
-        // define section (group) and tabs
-        $group = 'indexing';
-        Admin::$tabs[$group] = 'Indexing';
-
-        // define fields
-        $fields_index = [
-            'latest_stats' => [$this, 'indexStatistics']
-        ];
-
-        $fields_index_management = [
-            'storage_is_db' => [$this, 'storageIsDB'],
-            'build_index' => [$this, 'indexButton'],
-            'refresh_rate' => [$this, 'pollingDelayField'],
-            'force_WP_query' => [$this, 'forceWPQuery'],
-            'force_clean_up' => [$this, 'forceCleanUp']
-        ];
-
-        // fill the sections
-        Admin::$sections[$group] = [
-            $this->section([$this, 'indexStatisticsIntro'], $fields_index),
-            $this->section([$this, 'indexManagementIntro'], $fields_index_management)
-        ];
-
-        $this->createSections($group);
-    }
-
-    public function indexStatistics()
-    {
-        echo '<div id="moj-es-indexing-stats">
-                <div class="loadingio-spinner-spinner-qniwaf77spg">
-                <div class="ldio-hokc2a6hk1r">
-                <div></div><div></div><div></div><div></div><div></div><div></div>
-                <div></div><div></div><div></div><div></div><div></div><div></div>
-                </div></div></div>
-                <div id="my-kill-content-id" style="display:none;">
-                        <p>
-                            You are about to kill a running indexing process. If you are unsure, exit
-                            out of this box by clicking away from this modal.<br><strong>Please confirm:</strong>
-                        </p>
-                        <a class="button-primary kill_index_pre_link" title="Are you sure?">
-                            Yes, let\'s kill this... GO!
-                        </a>
-                    </div>';
-    }
-
-    private function maybeBulkBodyFormat($key)
-    {
-        return $key === 'bulk_body_size' ? ' / ' . $this->humanFileSize($this->payload_min) : '';
-    }
-
-    public function indexStatisticsIntro()
-    {
-        $heading = __('View the results from the latest index', $this->text_domain);
-
-        $description = __('', $this->text_domain);
-        echo '<div class="intro"><strong>' . $heading . '</strong><br>' . $description . '</div>';
-    }
-
-    public function indexManagementIntro()
-    {
-        $heading = __('Manage indexing options', $this->text_domain);
-
-        $description = __('', $this->text_domain);
-        echo '<div class="intro"><strong>' . $heading . '</strong><br>' . $description . '</div>';
-    }
-
-    public function indexButton()
-    {
-        $description = __(
-            'You will be asked to confirm your decision. Please use this button with due consideration.',
-            $this->text_domain
-        );
-        ?>
-        <div id="my-content-id" style="display:none;">
-            <p>
-                Please make sure you are aware of the implications when commanding a new index. If you are unsure, exit
-                out of this box by clicking away from this modal.<br><strong>Please confirm:</strong>
-            </p>
-            <a class="button-primary index_pre_link"
-               title="Are you sure?">
-                I'm ready to rebuild the index... GO!
-            </a>
-        </div>
-        <button name='<?= $this->optionName() ?>[index_button]' class="button-primary index_button" disabled="disabled">
-            Build new index
-        </button>
-        <a href="#TB_inline?&width=400&height=150&inlineId=my-content-id" class="button-primary thickbox"
-           title="Rebuild Elasticsearch Index">
-            Build new index
-        </a>
-        <p><?= $description ?></p>
-        <?php
-    }
-
-    public function storageIsDB()
-    {
-        $option = $this->options();
-        $storage_is_db = $option['storage_is_db'] ?? null;
-        ?>
-        <p>Should we store index stats in the DB or write them to disc?</p>
-        <input
-            type="checkbox"
-            value="1"
-            name="<?= $this->optionName() ?>[storage_is_db]"
-            <?php checked('1', $storage_is_db) ?>
-        /> <small id="storage_indicator"><?= ($this->stats_use_db ? 'Yes, store in DB' : 'No, write to disc') ?></small>
-        <?php
-    }
-
-    public function forceCleanUp()
-    {
-        $option = $this->options();
-        $force_clean_up = $option['force_clean_up'] ?? null;
-        ?>
-        <p>Do we need to clean the indexing process up? This might be needed if Bulk Body Size is greater than 0</p>
-        <input
-            type="checkbox"
-            value="1"
-            name="<?= $this->optionName() ?>[force_clean_up]"
-            <?php checked('1', $force_clean_up) ?>
-        /> <small id="force_clean_up_indicator"><?= ($force_clean_up ? 'Yes, clean up' : 'No') ?></small>
-        <?php
-    }
-
-    public function forceWPQuery()
-    {
-        $option = $this->options();
-        $force_wp_query = $option['force_WP_query'] ?? null;
-        ?>
-        <p>Has something gone wrong with Elasticsearch? Check this option to allow ElasticPress to use WP Query</p>
-        <input
-            type="checkbox"
-            value="1"
-            name="<?= $this->optionName() ?>[force_WP_query]"
-            <?php checked('1', $force_wp_query) ?>
-        /> <small
-        id="force_wp_query_indicator"><?= ($force_wp_query ? 'Yes, force WP Query while indexing' : 'No') ?></small>
-
-        <small style="font-size: 0.85rem"><br>
-            <br>Although very rare, we may need to override the default behaviour of querying by alias. <br>
-            Out of the box, we prevent ElasticPress from using WP Query on front end searches while<br>
-            indexing. Selecting this option will allow ElasticPress to fallback to WP Query.<br>
-            Useful in the event of catastrophic failure, such as an index being removed or emptied by accident.
-        </small>
-        <?php
-    }
-
-    public function pollingDelayField()
-    {
-        $option = $this->options();
-        $key = 'refresh_rate';
-        ?>
-        <input type="text" value="<?= $option[$key] ?? 3 ?>" name="<?= $this->optionName() ?>[<?= $key ?>]"/>
-        <small>Seconds</small>
-        <p>This setting affects the amount of time Latest Stats (above) is refreshed.</p>
-        <script>
-            var mojESPollingTime = <?= $option[$key] ?? 3 ?>
-        </script>
-        <?php
-    }
-
-    public function indexStatisticsAjax()
-    {
-        $output = '';
-        if ($this->isIndexing()) {
-            $output .= '<div class="notice notice-warning moj-es-stats-index-notice">
-                    <p><strong>Indexing is currently active</strong>
-                    <button name="moj_es_settings[index_kill]" value="1" class="button-primary kill_index_button"
-                        disabled="disabled">
-                        Stop Indexing
-                    </button>
-                    <a href="#TB_inline?&width=400&height=150&inlineId=my-kill-content-id"
-                        class="button-primary kill_index_button thickbox"
-                        title="Kill Elasticsearch Indexing">
-                        Stop Indexing
-                    </a></p>
-                </div>';
-        }
-
-        $output .= '<ul id="inner-indexing-stats">';
-        $total_files = $requests = '';
-
-        foreach ($this->getStats() as $key => $stat) {
-            if (strpos($key, 'last_') > -1) {
-                continue;
-            }
-
-            if ($key === 'large_files') {
-                $large_file_count = count($stat);
-                $total_files = '<li>Large posts (skipped): we have found <strong>' .
-                    $large_file_count . '</strong> large item' . ($large_file_count === 1 ? '' : 's') .
-                    '</li>';
-
-                if (!empty($stat)) {
-                    $total_files .= '<li>' . ucwords(str_replace('_', ' ', $key)) . ':';
-                    $total_files .= '<div class="large_file_holder"><ol>';
-                    foreach ($stat as $pid) {
-                        $link = '<a href="/wp/wp-admin/post.php?post=' .
-                            $pid->index->_id . '&action=edit" target="_blank">' .
-                            $pid->index->_id . '</a>';
-                        $total_files .= '<li><strong>' . $link . '</strong></li>';
-                    }
-                    $total_files .= '</ol></div></li>';
-                }
-            }
-
-            if ($key !== 'large_files') {
-                $requests .= '<li>' .
-                    ucwords(
-                        str_replace(['total', '_'], ['', ' '], $key)
-                    ) . ': <strong>' . print_r($stat, true) .
-                    '</strong>' . $this->maybeBulkBodyFormat($key) .
-                    '</li>';
-            }
-        }
-
-        return $output . $requests . $total_files . '</ul>';
-    }
-
     public function getStatsHTML()
     {
         $this->options();
-        $stats = $this->indexStatisticsAjax();
+        $stats = $this->settings->indexStatisticsAjax();
 
         echo json_encode($stats);
         die();
@@ -705,5 +488,49 @@ class Index extends Admin
     public static function delete($index)
     {
         wp_safe_remote_request(get_option('EP_HOST') . $index, ['method' => 'DELETE']);
+    }
+
+    /**
+     * Start a destructive bulk index.
+     * Normally initialised by the plugins admin page and also the presence of a running schedule.
+     * If the schedule exists after execution, remove it to prevent any further index attempts.
+     * @return null
+     */
+    private function beginBackgroundIndex()
+    {
+        $this->clearStats();
+        update_option('_moj_es_bulk_index_active', true);
+        exec("wp elasticpress index --setup --per-page=1 --allow-root > /dev/null 2>&1 & echo $!;");
+
+        // now we have started, stop the cron hook from running if it is present:
+        $timestamp = wp_next_scheduled('moj_es_exec_index');
+        if ($timestamp) {
+            wp_unschedule_event($timestamp, 'moj_es_exec_index');
+        }
+
+        return null;
+    }
+
+    /**
+     * Managed scheduling for a destructive bulk index
+     * Takes in to account the current env. and protects search behaviour for users on production.
+     * @return bool
+     */
+    public function scheduleIndexing()
+    {
+        if ($this->admin->env === 'production') {
+            // on production, prevent bulk indexes in the day
+            // if requested between 7.30am-12pm, schedule a task to launch after midnight
+            $prod_window_start = '00:00';
+            $prod_window_stop = '03:30';
+            if (time() > strtotime($prod_window_start) && time() < strtotime($prod_window_stop)) {
+                $this->beginBackgroundIndex();
+                return true;
+            }
+            return null;
+        }
+
+        $this->beginBackgroundIndex();
+        return true;
     }
 }

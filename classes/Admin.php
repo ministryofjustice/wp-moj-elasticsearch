@@ -8,21 +8,17 @@
 
 namespace MOJElasticSearch;
 
-use function ElasticPress\Utils\is_indexing;
+use MOJElasticSearch\Traits\Debug;
+use MOJElasticSearch\Traits\Settings;
 
 /**
  * Class Admin
  * @package MOJElasticSearch
  * @SuppressWarnings(PHPMD.TooManyPublicMethods)
  */
-class Admin extends Options
+class Admin
 {
     use Debug, Settings;
-
-    public $text_domain = 'wp-moj-elasticsearch';
-    public static $tabs = [];
-    public static $sections = [];
-    public $settings_registered = false;
 
     /**
      * The current environment, assumed production (__construct) if not present
@@ -41,8 +37,6 @@ class Admin extends Options
     {
         $this->env = env('WP_ENV') ?: 'production';
 
-        parent::__construct();
-
         $this->hooks();
     }
 
@@ -51,10 +45,7 @@ class Admin extends Options
      */
     public function hooks()
     {
-        // page set up
-        add_action('admin_init', [$this, 'register']);
-        add_action('admin_menu', [$this, 'settingsPage']);
-        add_action('admin_menu', [$this, 'pageSettings'], 1);
+        // style set up
         add_action('admin_enqueue_scripts', [$this, 'enqueue']);
         // ElasticPress
         add_action('ep_dashboard_start_index', [$this, 'clearStats']);
@@ -83,128 +74,6 @@ class Admin extends Options
     }
 
     /**
-     * Registers a setting when createSections() is called first time
-     * The register call is singular for the whole plugin
-     */
-    public function register()
-    {
-        if (!$this->settings_registered) {
-            register_setting(
-                $this->optionGroup(),
-                $this->optionName(),
-                ['sanitize_callback' => [$this, 'sanitizeSettings']]
-            );
-            $this->settings_registered = true;
-        }
-    }
-
-    /**
-     * Create the options page for the plugin
-     */
-    public function settingsPage()
-    {
-        add_options_page(
-            'MoJ ES',
-            'MoJ ES',
-            'manage_options',
-            'moj-es',
-            [$this, 'init']
-        );
-    }
-
-    /**
-     * Set up the plugin options page
-     */
-    public function init()
-    {
-        add_thickbox();
-
-        echo '<form action="options.php" method="post" class="moj-es" enctype="multipart/form-data">';
-
-        // Title section
-        $title = __('MoJ ES', $this->text_domain);
-        $title_admin = __('Extending the functionality of the ElasticPress plugin', $this->text_domain);
-        echo '<h1>' . $title . ' <small class="sub-title">.' . $title_admin . '</small></h1>';
-
-        settings_errors();
-
-        // output tab buttons
-        $this->tabs();
-
-        // drop sections
-        settings_fields($this->optionGroup());
-        $this->sections();
-
-        // drop button; update all text, check and process uploads, if required.
-        submit_button('Update Settings');
-
-        echo '</form>';
-    }
-
-    /**
-     * Generates page tabs for each registered module.
-     * Uses the $tabs array ~ defined by modules using sections and fields.
-     */
-    private function tabs()
-    {
-        echo '<div class="nav-tab-wrapper">';
-        foreach (self::$tabs as $tab => $label) {
-            echo '<a href="#moj-es-' . $tab . '" class="nav-tab">' . $label . '</a>';
-        }
-        echo '</div>';
-    }
-
-    /**
-     * Creates the Dashboard front-end section view in our settings page.
-     * Uses the $sections configuration array
-     */
-    private function sections()
-    {
-        foreach (self::$sections as $section_group_id => $sections) {
-            echo '<div id="moj-es-' . $section_group_id . '" class="moj-es-settings-group">';
-            foreach ($sections as $section) {
-                echo '<div id="moj-es-' . $section_group_id . '" class="moj-es-settings-section">';
-                echo "<h2>" . ($section['title'] ?? '') . "</h2>\n";
-
-                if ($section['callback']) {
-                    call_user_func($section['callback'], $section);
-                }
-
-                echo '<table class="form-table" role="presentation">';
-                do_settings_fields($this->optionGroup(), $this->prefix . '_' . $section['id']);
-                echo '</table>';
-
-                echo '</div>';
-            }
-            echo '</div>';
-        }
-        echo '<hr/>';
-    }
-
-    /**
-     * @param $section_callback array callback in array format [$this, 'mySectionIntroCallback']
-     * @param $fields array of callbacks in array format with keys ['my_field_title' => [$this, 'myFieldCallback']]
-     * @return array
-     */
-    public function section($section_callback, $fields): array
-    {
-        $structured_fields = [];
-        foreach ($fields as $field_id => $field_callback) {
-            $structured_fields[$field_id] = [
-                'title' => ucwords(str_replace(['-', '_'], ' ', $field_id)),
-                'callback' => $field_callback
-            ];
-        }
-
-        return [
-            'id' => strtolower($section_callback[1]),
-            'title' => ucwords(str_replace('Intro', '', $this->camelCaseToWords($section_callback[1]))),
-            'callback' => $section_callback,
-            'fields' => $structured_fields
-        ];
-    }
-
-    /**
      * Intercepts when saving settings so we can sanitize, validate or manage file uploads.
      *
      * @param array $options
@@ -214,7 +83,7 @@ class Admin extends Options
     {
         // catch manage_data; upload weightings
         if (!empty($_FILES["weighting-import"]["tmp_name"])) {
-            self::weightingUploadHandler();
+            $this->weightingUploadHandler();
         }
 
         // catch Bulk index action
@@ -263,7 +132,7 @@ class Admin extends Options
      */
     public function optionBulkIndex($options)
     {
-        if (is_indexing()) {
+        if ($this->isIndexing()) {
             self::settingNotice(
                 'The index cannot be refreshed until the current cycle has completed.',
                 'bulk-warning',
@@ -297,15 +166,15 @@ class Admin extends Options
      * We make sure to remove the file once it has been used, maintaining a good level of security.
      * @return null
      */
-    public static function weightingUploadHandler()
+    public function weightingUploadHandler()
     {
         // Check file size
         if ($_FILES['weighting-import']['size'] > 5485760) {
             self::settingNotice('File imported is too big (5MB limit).', 'size-error');
-            return;
+            return null;
         }
 
-        $weighting_file = self::importLocation() . basename($_FILES['weighting-import']['name']);
+        $weighting_file = $this->importLocation() . basename($_FILES['weighting-import']['name']);
 
         // Check the file was moved on the server
         if (!move_uploaded_file($_FILES['weighting-import']["tmp_name"], $weighting_file)) {
@@ -313,7 +182,7 @@ class Admin extends Options
                 'File not uploaded. There was a problem saving settings to file.',
                 'move-error'
             );
-            return;
+            return null;
         }
 
         $ep_weighting = json_decode(file_get_contents($weighting_file), true);
@@ -325,7 +194,7 @@ class Admin extends Options
                 'json-error'
             );
             unlink($weighting_file);
-            return;
+            return null;
         }
 
         // Check if DB was updated or not, convey message.
@@ -336,7 +205,7 @@ class Admin extends Options
                 'info'
             );
             unlink($weighting_file);
-            return;
+            return null;
         }
 
         self::settingNotice(
@@ -344,7 +213,9 @@ class Admin extends Options
             'import-success',
             'success'
         );
+
         unlink($weighting_file);
+        return null;
     }
 
     /**
@@ -380,43 +251,6 @@ class Admin extends Options
         ];
 
         return $schedules;
-    }
-
-    /**
-     * Utility:
-     * Takes a string in the form of camelCase or CamelCase and splits to individual words
-     * @param $string
-     * @return string
-     * @example theQuickBrownFox = the Quick Brown Fox
-     * @example TheQuickBrownFox = The Quick Brown Fox
-     */
-    public function camelCaseToWords($string)
-    {
-        $regex = '/
-              (?<=[a-z])      # Position is after a lowercase,
-              (?=[A-Z])       # and before an uppercase letter.
-            | (?<=[A-Z])      # Or g2of2; Position is after uppercase,
-              (?=[A-Z][a-z])  # and before upper-then-lower case.
-            /x';
-        $words = preg_split($regex, $string);
-        $count = count($words);
-        if (is_array($words)) {
-            $string = '';
-            for ($i = 0; $i < $count; ++$i) {
-                if ($words[$i] === 'MOJ') {
-                    $words[$i] = 'MoJ';
-                }
-                if ($words[$i] === 'Wp') {
-                    $words[$i] = 'WP';
-                }
-                if ($words[$i] === 'Colon') {
-                    $words[$i] = ': ';
-                }
-                $string .= $words[$i] . " ";
-            }
-        }
-
-        return rtrim($string);
     }
 
     /**
@@ -459,48 +293,6 @@ class Admin extends Options
         );
     }
 
-    /**
-     * Start a destructive bulk index.
-     * Normally initialised by the plugins admin page and also the presence of a running schedule.
-     * If the schedule exists after execution, remove it to prevent any further index attempts.
-     * @return null
-     */
-    private function beginBackgroundIndex()
-    {
-        $this->clearStats();
-        update_option('_moj_es_bulk_index_active', true);
-        exec("wp elasticpress index --setup --per-page=1 --allow-root > /dev/null 2>&1 & echo $!;");
-
-        // now we have started, stop the cron hook from running if it is present:
-        $timestamp = wp_next_scheduled('moj_es_exec_index');
-        if ($timestamp) {
-            wp_unschedule_event($timestamp, 'moj_es_exec_index');
-        }
-    }
-
-    /**
-     * Managed scheduling for a destructive bulk index
-     * Takes in to account the current env. and protects search behaviour for users on production.
-     * @return bool
-     */
-    public function scheduleIndexing()
-    {
-        if ($this->env === 'production') {
-            // on production, prevent bulk indexes in the day
-            // if requested between 7.30am-12pm, schedule a task to launch after midnight
-            $prod_window_start = '00:00';
-            $prod_window_stop = '03:30';
-            if (time() > strtotime($prod_window_start) && time() < strtotime($prod_window_stop)) {
-                $this->beginBackgroundIndex();
-                return true;
-            }
-            return null;
-        }
-
-        $this->beginBackgroundIndex();
-        return true;
-    }
-
     public function isSearch($path)
     {
         if (str_replace('/_search', '', $path) != $path) {
@@ -513,65 +305,5 @@ class Admin extends Options
     public function isIndexing(): bool
     {
         return get_transient('ep_wpcli_sync');
-    }
-
-    /**
-     * This method is quite literally a space saving settings method
-     *
-     * Create your tab by adding to the $tabs global array with a label as the value
-     * Configure a section with fields for that tab as arrays by adding to the $sections global array.
-     *
-     * @SuppressWarnings(PHPMD)
-     */
-    public function pageSettings()
-    {
-        // define section (group) and tabs
-        $group = 'home';
-        Admin::$tabs[$group] = 'Welcome';
-
-        // define fields
-        $fields_intro = [
-            'introduction' => [$this, 'homeIntroduction']
-        ];
-
-        $fields_credits = [
-            'credits' => [$this, 'teamCredits']
-        ];
-
-        // fill the sections
-        Admin::$sections[$group] = [
-            $this->section([$this, 'guidanceColonWpMOJElasticsearch'], [])
-        ];
-
-        $this->createSections($group);
-    }
-
-    public function guidanceColonWpMOJElasticsearch()
-    {
-        $heading = __('Welcome to the settings console for interacting with AWS Elasticsearch', $this->text_domain);
-        $description = __('This plugin has been created to interface directly with the popular plugin ElasticPress, provided by the company 10up', $this->text_domain);
-
-        echo '<div class="intro"><strong>' . $heading . '</strong><br>' . $description . '</div>
-            <h3>Enhancements and Features</h3>
-            <h4>Enhancements</h4>
-            <ul>
-                <li>Enhancement here</li>
-                <li>Enhancement here</li>
-            </ul>
-            <h4>Features</h4>
-            <ul>
-                <li>Feature here</li>
-                <li>Feature here</li>
-            </ul>';
-    }
-
-    public function homeIntroduction()
-    {
-        echo '';
-    }
-
-    public function teamCredits()
-    {
-        echo '';
     }
 }

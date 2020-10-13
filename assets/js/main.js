@@ -149,7 +149,7 @@ jQuery(function ($) {
             $('#force_clean_up_indicator').text(($(this).is(':checked') ? 'Yes, clean up.' : 'No.'))
         })
 
-        $('input[name*="force_WP_query"]').on('click', function () {
+        $('input[name*="force_wp_query"]').on('click', function () {
             $('#force_wp_query_indicator').text(($(this).is(':checked') ? 'Yes, force WP Query while indexing.' : 'No.'))
         })
     }

@@ -8,8 +8,8 @@ class Alias
 {
     use Debug;
 
-    private $url = '';
-    public $name = '';
+    private $url;
+    public $name;
     public $index_old = '';
 
     public function __construct()
@@ -106,16 +106,18 @@ class Alias
      */
     public function pollForCompletion()
     {
-        //if (false === get_transient('moj_es_index_force_stopped')) {
+        if (false === get_transient('moj_es_index_force_stopped')) {
             // schedule a task to clean up the index once it has finished
-        if (!wp_next_scheduled('moj_es_poll_for_completion')) {
-            wp_schedule_event(time(), 'one_minute', 'moj_es_poll_for_completion');
-        }
+            if (!wp_next_scheduled('moj_es_poll_for_completion')) {
+                wp_schedule_event(time(), 'one_minute', 'moj_es_poll_for_completion');
+            }
 
             return true;
-        //}
+        }
 
-        //wp_mail('me@forced.com', 'Shutdown by user', $this->debug('FORCED', 'BOOHOO'));
+        wp_mail('me@forced.com', 'Shutdown by user', $this->debug('FORCED', 'BOOHOO'));
+
+        return null;
     }
 
     public function isESQueueEmpty()

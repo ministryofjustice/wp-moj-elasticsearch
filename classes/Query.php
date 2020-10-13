@@ -98,7 +98,7 @@ class Query extends Admin
     {
         // define section (group) and tabs
         $group = 'query';
-        Admin::$tabs[$group] = 'Queries';
+        Page::$tabs[$group] = 'Queries';
 
         // define fields
         $fields_index = [
@@ -106,7 +106,7 @@ class Query extends Admin
         ];
 
         // fill the sections
-        Admin::$sections[$group] = [
+        Page::$sections[$group] = [
             $this->section([$this, 'queryIntro'], $fields_index)
         ];
 
