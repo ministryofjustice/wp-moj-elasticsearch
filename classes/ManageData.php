@@ -11,7 +11,9 @@
 
 namespace MOJElasticSearch;
 
-class ManageData extends Admin
+use MOJElasticSearch\Settings\Page;
+
+class ManageData extends Page
 {
     use Settings, Debug;
 

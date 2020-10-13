@@ -8,17 +8,16 @@
 
 namespace MOJElasticSearch;
 
-use MOJElasticSearch\Traits\Debug;
-use MOJElasticSearch\Traits\Settings;
-
 /**
  * Class Admin
  * @package MOJElasticSearch
  * @SuppressWarnings(PHPMD.TooManyPublicMethods)
  */
-class Admin
+class Admin extends Options
 {
     use Debug, Settings;
+
+    public $settings_registered = false;
 
     /**
      * The current environment, assumed production (__construct) if not present
@@ -36,6 +35,7 @@ class Admin
     public function __construct()
     {
         $this->env = env('WP_ENV') ?: 'production';
+        parent::__construct();
 
         $this->hooks();
     }
@@ -46,6 +46,7 @@ class Admin
     public function hooks()
     {
         // style set up
+        add_action('admin_init', [$this, 'register']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue']);
         // ElasticPress
         add_action('ep_dashboard_start_index', [$this, 'clearStats']);
@@ -71,6 +72,22 @@ class Admin
             'moj_js_object',
             array('ajaxurl' => admin_url('admin-ajax.php'))
         );
+    }
+
+    /**
+     * Registers a setting when createSections() is called first time
+     * The register call is singular for the whole plugin
+     */
+    public function register()
+    {
+        if (!$this->settings_registered) {
+            register_setting(
+                $this->optionGroup(),
+                $this->optionName(),
+                ['sanitize_callback' => [$this, 'sanitizeSettings']]
+            );
+            $this->settings_registered = true;
+        }
     }
 
     /**
@@ -305,5 +322,49 @@ class Admin
     public function isIndexing(): bool
     {
         return get_transient('ep_wpcli_sync');
+    }
+
+    /**
+     * Start a destructive bulk index.
+     * Normally initialised by the plugins admin page and also the presence of a running schedule.
+     * If the schedule exists after execution, remove it to prevent any further index attempts.
+     * @return null
+     */
+    private function beginBackgroundIndex()
+    {
+        $this->clearStats();
+        update_option('_moj_es_bulk_index_active', true);
+        exec("wp elasticpress index --setup --per-page=1 --allow-root > /dev/null 2>&1 & echo $!;");
+
+        // now we have started, stop the cron hook from running if it is present:
+        $timestamp = wp_next_scheduled('moj_es_exec_index');
+        if ($timestamp) {
+            wp_unschedule_event($timestamp, 'moj_es_exec_index');
+        }
+
+        return null;
+    }
+
+    /**
+     * Managed scheduling for a destructive bulk index
+     * Takes in to account the current env. and protects search behaviour for users on production.
+     * @return bool
+     */
+    public function scheduleIndexing()
+    {
+        if ($this->env === 'production') {
+            // on production, prevent bulk indexes in the day
+            // if requested between 7.30am-12pm, schedule a task to launch after midnight
+            $prod_window_start = '00:00';
+            $prod_window_stop = '03:30';
+            if (time() > strtotime($prod_window_start) && time() < strtotime($prod_window_stop)) {
+                $this->beginBackgroundIndex();
+                return true;
+            }
+            return null;
+        }
+
+        $this->beginBackgroundIndex();
+        return true;
     }
 }

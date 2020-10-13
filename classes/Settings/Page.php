@@ -8,9 +8,9 @@
 
 namespace MOJElasticSearch\Settings;
 
+use MOJElasticSearch\Debug;
 use MOJElasticSearch\Options;
-use MOJElasticSearch\Traits\Debug;
-use MOJElasticSearch\Traits\Settings;
+use MOJElasticSearch\Settings;
 
 class Page extends Options
 {
@@ -19,7 +19,6 @@ class Page extends Options
     public $text_domain = 'wp-moj-elasticsearch';
     public static $tabs = [];
     public static $sections = [];
-    public $settings_registered = false;
 
     public function __construct()
     {
@@ -33,25 +32,8 @@ class Page extends Options
     public function hooks()
     {
         // page set up
-        add_action('admin_init', [$this, 'register']);
         add_action('admin_menu', [$this, 'settingsPage']);
         add_action('admin_menu', [$this, 'pageSettings'], 1);
-    }
-
-    /**
-     * Registers a setting when createSections() is called first time
-     * The register call is singular for the whole plugin
-     */
-    public function register()
-    {
-        if (!$this->settings_registered) {
-            register_setting(
-                $this->optionGroup(),
-                $this->optionName(),
-                ['sanitize_callback' => [$this, 'sanitizeSettings']]
-            );
-            $this->settings_registered = true;
-        }
     }
 
     /**
@@ -247,7 +229,7 @@ class Page extends Options
 
         // fill the sections
         Page::$sections[$group] = [
-            $this->section([$this, 'guidanceColonWpMOJElasticsearch'], [])
+            $this->section([$this, 'guidanceColonWpMOJElasticsearch'], $fields_intro)
         ];
 
         $this->createSections($group);

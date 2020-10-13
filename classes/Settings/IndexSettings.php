@@ -11,13 +11,39 @@ use MOJElasticSearch\Settings;
  * @package MOJElasticSearch\Settings
  * @SuppressWarnings(PHPMD)
  */
-class IndexSettings extends Admin
+class IndexSettings extends Page
 {
     use Settings;
+
+    /**
+     * The minimum payload size we create before sending to ES
+     * @var int size in bytes
+     */
+    public $payload_min = 53500000;
+
+    /**
+     * The maximum we allow for a custom created payload file
+     * @var int size in bytes
+     */
+    public $payload_max = 55000000;
+
+    /**
+     * The absolute maximum for any single payload request
+     * @var int size in bytes
+     */
+    public $payload_ep_max = 98000000;
+
+    /**
+     * Admin object
+     * @var Admin
+     */
+    private $admin;
 
     public function __construct()
     {
         parent::__construct();
+
+        $this->admin = new Admin();
         self::hooks();
     }
 
@@ -83,7 +109,7 @@ class IndexSettings extends Admin
 
     private function maybeBulkBodyFormat($key)
     {
-        return $key === 'bulk_body_size' ? ' / ' . $this->humanFileSize($this->payload_min) : '';
+        return $key === 'bulk_body_size' ? ' / ' . $this->admin->humanFileSize($this->payload_min) : '';
     }
 
     public function indexStatisticsIntro()
@@ -200,7 +226,7 @@ class IndexSettings extends Admin
     public function indexStatisticsAjax()
     {
         $output = '';
-        if ($this->isIndexing()) {
+        if ($this->admin->isIndexing()) {
             $output .= '<div class="notice notice-warning moj-es-stats-index-notice">
                     <p><strong>Indexing is currently active</strong>
                     <button name="moj_es_settings[index_kill]" value="1" class="button-primary kill_index_button"

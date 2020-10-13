@@ -104,6 +104,8 @@ class Options
             $this->options = null;
             return true;
         }
+
+        return false;
     }
 
     /**
@@ -188,6 +190,8 @@ class Options
         $handle = fopen($this->importLocation() . 'moj-bulk-index-stats.json', 'w');
         fwrite($handle, json_encode($es_stats));
         fclose($handle);
+
+        return true;
     }
 
     /**

@@ -5,7 +5,6 @@ namespace MOJElasticSearch;
 use WP_Error;
 use MOJElasticSearch\Settings\Page;
 use MOJElasticSearch\Settings\IndexSettings;
-use MOJElasticSearch\Traits\Debug;
 
 /**
  * Class Index
@@ -21,24 +20,6 @@ class Index extends Page
     use Debug;
 
     private $stat_output_echo = true;
-
-    /**
-     * The minimum payload size we create before sending to ES
-     * @var int size in bytes
-     */
-    public $payload_min = 53500000;
-
-    /**
-     * The maximum we allow for a custom created payload file
-     * @var int size in bytes
-     */
-    public $payload_max = 55000000;
-
-    /**
-     * The absolute maximum for any single payload request
-     * @var int size in bytes
-     */
-    public $payload_ep_max = 98000000;
 
     /**
      * Cache the name of a bulk index route
@@ -76,17 +57,16 @@ class Index extends Page
         // construct
         $this->alias = new Alias();
         $this->admin = new Admin();
+        $this->settings = new IndexSettings();
 
         // smaller server on dev
         if ($this->admin->env === 'development') {
-            $this->payload_min = 6000000;
-            $this->payload_max = 8900000;
-            $this->payload_ep_max = 9900000;
+            $this->settings->payload_min = 6000000;
+            $this->settings->payload_max = 8900000;
+            $this->settings->payload_ep_max = 9900000;
         }
 
         $this->index_name_current = get_option('_moj_es_index_name');
-
-        $this->settings = new IndexSettings();
 
         self::hooks();
     }
@@ -256,7 +236,7 @@ class Index extends Page
         $stats = $this->getStats();
 
         // check the total size - no more than max defined
-        if (mb_strlen($args['body'], 'UTF-8') <= $this->payload_ep_max) {
+        if (mb_strlen($args['body'], 'UTF-8') <= $this->settings->payload_ep_max) {
             // allow ElasticPress to index normally
             $stats['total_large_requests']++;
             $this->setStats($stats);
@@ -296,7 +276,7 @@ class Index extends Page
         $stats['bulk_body_size'] = $this->admin->humanFileSize($body_stored_size);
 
         // payload maybe too big?
-        if ($body_stored_size + $body_new_size > $this->payload_max) {
+        if ($body_stored_size + $body_new_size > $this->settings->payload_max) {
             return false; // index individual file (normal)
         }
 
@@ -307,7 +287,7 @@ class Index extends Page
 
         add_filter('ep_intercept_remote_request', [$this, 'interceptTrue']);
 
-        if ($body_stored_size + $body_new_size > $this->payload_min) {
+        if ($body_stored_size + $body_new_size > $this->settings->payload_min) {
             // prepare interception
             add_filter('ep_do_intercept_request', [$this, 'requestIntercept'], 11, 4);
             return true;
@@ -456,12 +436,10 @@ class Index extends Page
                 // now we are done, stop the cron hook from running:
                 $timestamp = wp_next_scheduled('moj_es_cron_hook');
                 wp_unschedule_event($timestamp, 'moj_es_cron_hook');
-
-                return true;
             }
         }
 
-        return false;
+        return;
     }
 
     /**
@@ -488,49 +466,5 @@ class Index extends Page
     public static function delete($index)
     {
         wp_safe_remote_request(get_option('EP_HOST') . $index, ['method' => 'DELETE']);
-    }
-
-    /**
-     * Start a destructive bulk index.
-     * Normally initialised by the plugins admin page and also the presence of a running schedule.
-     * If the schedule exists after execution, remove it to prevent any further index attempts.
-     * @return null
-     */
-    private function beginBackgroundIndex()
-    {
-        $this->clearStats();
-        update_option('_moj_es_bulk_index_active', true);
-        exec("wp elasticpress index --setup --per-page=1 --allow-root > /dev/null 2>&1 & echo $!;");
-
-        // now we have started, stop the cron hook from running if it is present:
-        $timestamp = wp_next_scheduled('moj_es_exec_index');
-        if ($timestamp) {
-            wp_unschedule_event($timestamp, 'moj_es_exec_index');
-        }
-
-        return null;
-    }
-
-    /**
-     * Managed scheduling for a destructive bulk index
-     * Takes in to account the current env. and protects search behaviour for users on production.
-     * @return bool
-     */
-    public function scheduleIndexing()
-    {
-        if ($this->admin->env === 'production') {
-            // on production, prevent bulk indexes in the day
-            // if requested between 7.30am-12pm, schedule a task to launch after midnight
-            $prod_window_start = '00:00';
-            $prod_window_stop = '03:30';
-            if (time() > strtotime($prod_window_start) && time() < strtotime($prod_window_stop)) {
-                $this->beginBackgroundIndex();
-                return true;
-            }
-            return null;
-        }
-
-        $this->beginBackgroundIndex();
-        return true;
     }
 }

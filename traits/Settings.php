@@ -3,7 +3,9 @@
  * Modularised settings across the plugin, in the WordPress way
  */
 
-namespace MOJElasticSearch\Traits;
+namespace MOJElasticSearch;
+
+use MOJElasticSearch\Settings\Page;
 
 trait Settings
 {

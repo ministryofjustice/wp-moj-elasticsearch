@@ -2,7 +2,9 @@
 
 namespace MOJElasticSearch;
 
-class Query extends Admin
+use MOJElasticSearch\Settings\Page;
+
+class Query extends Page
 {
     use Settings, Debug;
 

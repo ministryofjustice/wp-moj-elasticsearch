@@ -10,12 +10,14 @@ class Alias
 
     private $url;
     public $name;
-    public $index_old = '';
+    public $index;
 
     public function __construct()
     {
         $this->url = get_option('ep_host') . '_aliases';
         $this->name = get_option('_moj_es_alias_name');
+
+        $this->index = new Index();
 
         $this->hooks();
     }
@@ -92,7 +94,7 @@ class Alias
             }
 
             // no error... let's remove the old index
-            Index::delete($index_old);
+            $this->index->delete($index_old);
         }
 
         return $index_updated;
