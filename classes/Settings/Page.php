@@ -58,7 +58,7 @@ class Page extends Options
         add_thickbox();
 
         echo '<form action="options.php" method="post" class="moj-es" enctype="multipart/form-data">';
-
+        wp_nonce_field();
         // Title section
         $title = __('MoJ ES', $this->text_domain);
         $title_admin = __('Extending functionality of the ElasticPress plugin', $this->text_domain);

@@ -40,29 +40,22 @@ class Index extends Page
     private $alias;
 
     /**
-     * Admin object
-     * @var Admin
-     */
-    private $admin;
-
-    /**
      * @var IndexSettings
      */
     private $settings;
 
     public $timer_started = false;
 
-    public function __construct()
+    public function __construct(IndexSettings $settings, Alias $alias)
     {
         parent::__construct();
 
         // construct
-        $this->alias = new Alias();
-        $this->admin = new Admin();
-        $this->settings = new IndexSettings();
+        $this->alias = $alias;
+        $this->settings = $settings;
 
         // smaller server on dev
-        if ($this->admin->env === 'development') {
+        if ($this->settings->admin->env === 'development') {
             $this->settings->payload_min = 6000000;
             $this->settings->payload_max = 8900000;
             $this->settings->payload_ep_max = 9900000;
@@ -108,11 +101,6 @@ class Index extends Page
             return $host . $this->alias->name . '/_search';
         }
 
-        // schedule a task to clean up the index once it has finished
-        if (!wp_next_scheduled('moj_es_cron_hook')) {
-            wp_schedule_event(time(), 'one_minute', 'moj_es_cron_hook');
-        }
-
         $allow_methods = [
             'POST',
             'PUT'
@@ -139,6 +127,10 @@ class Index extends Page
         }
 
         if (isset($args['method']) && in_array($args['method'], $allow_methods)) {
+            // schedule a task to clean up the index once it has finished
+            if (!wp_next_scheduled('moj_es_cron_hook')) {
+                wp_schedule_event(time(), 'one_minute', 'moj_es_cron_hook');
+            }
             $request = $this->index($request, $failures, $host, $path, $args);
         }
 
@@ -155,7 +147,7 @@ class Index extends Page
      */
     public function indexNames(string $alias_name): string
     {
-        if (!$this->admin->isIndexing()) {
+        if (!$this->settings->admin->isIndexing()) {
             return $alias_name;
         }
 
@@ -275,7 +267,7 @@ class Index extends Page
             );
         }
 
-        $stats['bulk_body_size'] = $this->admin->humanFileSize($body_stored_size);
+        $stats['bulk_body_size'] = $this->settings->admin->humanFileSize($body_stored_size);
 
         // payload maybe too big?
         if ($body_stored_size + $body_new_size > $this->settings->payload_max) {
@@ -406,7 +398,7 @@ class Index extends Page
      */
     public function cleanUpIndexing()
     {
-        if ($this->admin->isIndexing()) {
+        if ($this->settings->admin->isIndexing()) {
             return false;
         }
 
@@ -435,14 +427,16 @@ class Index extends Page
                 // Poll for completion
                 $this->alias->pollForCompletion();
 
-                // stop timer
-                $this->admin->indexTimer(time(), false);
-
                 // now we are done, stop the cron hook from running:
                 $timestamp = wp_next_scheduled('moj_es_cron_hook');
                 wp_unschedule_event($timestamp, 'moj_es_cron_hook');
+
+                // stop timer
+                $this->settings->admin->indexTimer(time(), false);
             }
         }
+        $timestamp = wp_next_scheduled('moj_es_cron_hook');
+        wp_unschedule_event($timestamp, 'moj_es_cron_hook');
 
         return null;
     }

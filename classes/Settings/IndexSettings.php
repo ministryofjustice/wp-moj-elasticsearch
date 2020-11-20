@@ -37,13 +37,13 @@ class IndexSettings extends Page
      * Admin object
      * @var Admin
      */
-    private $admin;
+    public $admin;
 
-    public function __construct()
+    public function __construct(Admin $admin)
     {
         parent::__construct();
 
-        $this->admin = new Admin();
+        $this->admin = $admin;
         self::hooks();
     }
 

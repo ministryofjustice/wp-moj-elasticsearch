@@ -2,8 +2,6 @@
 
 namespace MOJElasticSearch;
 
-use MOJElasticSearch\Index as Index;
-
 class Alias
 {
     use Debug;
@@ -115,7 +113,7 @@ class Alias
             return true;
         }
 
-        wp_mail('me@forced.com', 'Shutdown by user', $this->debug('FORCED', 'BOOHOO'));
+        wp_mail('index@forced-stop.com', 'Shutdown by user', $this->debug('FORCED', 'BOOHOO'));
 
         return null;
     }

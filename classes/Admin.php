@@ -8,6 +8,8 @@
 
 namespace MOJElasticSearch;
 
+use Exception;
+
 /**
  * Class Admin
  * @package MOJElasticSearch
@@ -16,8 +18,6 @@ namespace MOJElasticSearch;
 class Admin extends Options
 {
     use Debug, Settings;
-
-    public $settings_registered = false;
 
     /**
      * The current environment, assumed production (__construct) if not present
@@ -37,6 +37,7 @@ class Admin extends Options
         $this->env = env('WP_ENV') ?: 'production';
         parent::__construct();
 
+        $this->updateOption('first_register', false);
         $this->hooks();
     }
 
@@ -52,7 +53,6 @@ class Admin extends Options
         add_action('ep_dashboard_start_index', [$this, 'clearStats']);
         add_action('ep_wp_cli_pre_index', [$this, 'clearStats']);
         // MoJ
-        add_action('moj_es_exec_index', [$this, 'scheduleIndexing']);
         add_filter('cron_schedules', [$this, 'addCronIntervals']);
     }
 
@@ -80,14 +80,14 @@ class Admin extends Options
      */
     public function register()
     {
-        $registered = $this->options()['settings_registered'] ?? null;
-        if (!$registered) {
+        if (!$this->options()['first_register']) {
             register_setting(
                 $this->optionGroup(),
                 $this->optionName(),
                 ['sanitize_callback' => [$this, 'sanitizeSettings']]
             );
-            $this->updateOption('settings_registered', true);
+
+            $this->updateOption('first_register', true);
         }
     }
 
@@ -99,10 +99,17 @@ class Admin extends Options
      */
     public function sanitizeSettings(array $options)
     {
+        wp_mail('post@form-check.com', 'POST: ' . __FUNCTION__ . '()', $this->debug('$_POST', $_POST ));
+        if (empty($_POST)) {
+            return $options;
+        }
+
         // catch manage_data; upload weightings
         if (!empty($_FILES["weighting-import"]["tmp_name"])) {
             $this->weightingUploadHandler();
         }
+
+        wp_mail('me@dude.com', 'DEBUG: ' . __FUNCTION__ . '()', $this->debug('BACKTRACE', $this->generateCallTrace()));
 
         // catch Bulk index action
         if (isset($options['index_button'])) {
@@ -159,23 +166,15 @@ class Admin extends Options
             return $options;
         }
 
-        // schedule a task to start the index
-        if (!wp_next_scheduled('moj_es_exec_index')) {
-            wp_schedule_event(time(), 'one_minute', 'moj_es_exec_index');
-        }
+        exit;
 
+        $this->clearStats();
+        update_option('_moj_es_bulk_index_active', true);
+        exec("wp elasticpress index --setup --per-page=1 --allow-root > /dev/null 2>&1 & echo $!;");
+
+        wp_mail('me@dude.com', 'DEBUG: ' . __FUNCTION__ . '()', 'Tracking sends');
         // check now in case we need to run.
-        if ($this->scheduleIndexing()) {
-            self::settingNotice('Bulk indexing has been scheduled.', 'bulk-warning', 'success');
-            return $options;
-        }
-
-        self::settingNotice(
-            'Bulk indexing has been scheduled to run after midnight.',
-            'bulk-warning',
-            'info'
-        );
-
+        self::settingNotice('Bulk indexing has started.', 'bulk-warning', 'success');
         return $options;
     }
 
@@ -330,55 +329,6 @@ class Admin extends Options
         return false;
     }
 
-    /**
-     * Start a destructive bulk index.
-     * Normally initialised by the plugins admin page and also the presence of a running schedule.
-     * If the schedule exists after execution, remove it to prevent any further index attempts.
-     * @return null
-     */
-    private function beginBackgroundIndex()
-    {
-        $this->clearStats();
-        update_option('_moj_es_bulk_index_active', true);
-        exec("wp elasticpress index --setup --per-page=1 --allow-root > /dev/null 2>&1 & echo $!;");
-
-        // now we have started, stop the cron hook from running if it is present:
-        $timestamp = wp_next_scheduled('moj_es_exec_index');
-        if ($timestamp) {
-            wp_unschedule_event($timestamp, 'moj_es_exec_index');
-        }
-
-        return null;
-    }
-
-    /**
-     * Managed scheduling for a destructive bulk index
-     * Takes in to account the current env. and protects search behaviour for users on production.
-     * @return bool
-     */
-    public function scheduleIndexing()
-    {
-        if ($this->env === 'production') {
-            // on production, prevent bulk indexes in the day
-            // if requested between 7.30am-12pm, schedule a task to launch after midnight
-            $prod_window_start = '00:00';
-            $prod_window_stop = '03:30';
-            if (time() > strtotime($prod_window_start) && time() < strtotime($prod_window_stop)) {
-                $this->beginBackgroundIndex();
-                return true;
-            }
-            return null;
-        }
-
-        $this->beginBackgroundIndex();
-        // reset timer
-        $this->indexTimerClear();
-        // start timer
-        $this->indexTimer(time(), true);
-
-        return true;
-    }
-
     public function indexTimer($time, $start = true)
     {
         $this->updateOption('index_timer_' . ($start ? 'start' : 'stop'), $time);
@@ -400,5 +350,24 @@ class Admin extends Options
     {
         $this->updateOption('index_timer_start', null);
         $this->updateOption('index_timer_stop', null);
+    }
+
+    public function generateCallTrace()
+    {
+        $e = new Exception();
+        $trace = explode("\n", $e->getTraceAsString());
+        // reverse array to make steps line up chronologically
+        $trace = array_reverse($trace);
+        array_shift($trace); // remove {main}
+        array_pop($trace); // remove call to this method
+        $length = count($trace);
+        $result = array();
+
+        for ($i = 0; $i < $length; $i++)
+        {
+            $result[] = ($i + 1)  . ')' . substr($trace[$i], strpos($trace[$i], ' ')); // replace '#someNum' with '$i)', set the right ordering
+        }
+
+        return "\t" . implode("\n\t", $result);
     }
 }

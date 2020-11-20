@@ -108,7 +108,7 @@ jQuery(function ($) {
         var polling_num = 0;
         var statInterval = null;
         // self-executing function; get latest stats
-        (function get_stats () {
+        (function get_stats() {
             if (!statInterval) {
                 statInterval = setInterval(get_stats, mojESPollingTime * 1000);
             }
@@ -127,7 +127,7 @@ jQuery(function ($) {
                     setTimeout(get_stats, 20000);
                 }
             })
-        })()
+        })();
     }
 
     $('#wpbody-content > div[id^="setting-error-"]').remove();
