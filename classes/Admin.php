@@ -80,13 +80,14 @@ class Admin extends Options
      */
     public function register()
     {
-        if (!$this->settings_registered) {
+        $registered = $this->options()['settings_registered'] ?? null;
+        if (!$registered) {
             register_setting(
                 $this->optionGroup(),
                 $this->optionName(),
                 ['sanitize_callback' => [$this, 'sanitizeSettings']]
             );
-            $this->settings_registered = true;
+            $this->updateOption('settings_registered', true);
         }
     }
 
@@ -319,9 +320,14 @@ class Admin extends Options
         return false;
     }
 
-    public function isIndexing(): bool
+    public function isIndexing($progress = false)
     {
-        return get_transient('ep_wpcli_sync');
+        $indexing = get_transient('ep_wpcli_sync');
+        if (false !== $indexing) {
+            return $progress ? $indexing : true;
+        }
+
+        return false;
     }
 
     /**
@@ -365,6 +371,34 @@ class Admin extends Options
         }
 
         $this->beginBackgroundIndex();
+        // reset timer
+        $this->indexTimerClear();
+        // start timer
+        $this->indexTimer(time(), true);
+
         return true;
+    }
+
+    public function indexTimer($time, $start = true)
+    {
+        $this->updateOption('index_timer_' . ($start ? 'start' : 'stop'), $time);
+    }
+
+    public function getIndexedTime()
+    {
+        $options = $this->options();
+
+        $start = $options['index_timer_start'] ?? 0;
+        $stop = $options['index_timer_stop'] ?? time();
+
+        $hour = floor(($stop - $start) / 3600);
+        $min = floor(($stop - $start) / 60 % 60);
+        return $hour . ' hr ' . $min . ' min';
+    }
+
+    public function indexTimerClear()
+    {
+        $this->updateOption('index_timer_start', null);
+        $this->updateOption('index_timer_stop', null);
     }
 }

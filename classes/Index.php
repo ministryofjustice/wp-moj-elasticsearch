@@ -50,6 +50,8 @@ class Index extends Page
      */
     private $settings;
 
+    public $timer_started = false;
+
     public function __construct()
     {
         parent::__construct();
@@ -433,13 +435,16 @@ class Index extends Page
                 // Poll for completion
                 $this->alias->pollForCompletion();
 
+                // stop timer
+                $this->admin->indexTimer(time(), false);
+
                 // now we are done, stop the cron hook from running:
                 $timestamp = wp_next_scheduled('moj_es_cron_hook');
                 wp_unschedule_event($timestamp, 'moj_es_cron_hook');
             }
         }
 
-        return;
+        return null;
     }
 
     /**
@@ -461,10 +466,5 @@ class Index extends Page
 
         echo json_encode($stats);
         die();
-    }
-
-    public static function delete($index)
-    {
-        wp_safe_remote_request(get_option('EP_HOST') . $index, ['method' => 'DELETE']);
     }
 }

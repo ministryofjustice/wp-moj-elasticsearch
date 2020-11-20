@@ -34,11 +34,11 @@ a.nav-tab:focus {
     border: 1px solid #fff;
     border-radius: 3px;
     max-width: 50rem;
-    min-width: 30rem;
+    min-width: 35rem;
 }
 
 #wpbody-content > div[id^="setting-error-"] {
-    display:none;
+    display: none;
 }
 
 .moj-es > .notice {
@@ -55,12 +55,15 @@ a.nav-tab:focus {
 }
 
 .moj-es-stats-index-notice {
-    margin-left: 0;
+    margin-left: -20px;
     display: inline-block;
+}
+.moj-es-stats-index-notice small > span {
+    float: right;
 }
 
 #inner-indexing-stats {
-    opacity:1;
+    opacity: 1;
 }
 
 .moj-es .large_file_holder {
@@ -70,6 +73,71 @@ a.nav-tab:focus {
     background-color: white;
     border: 1px solid #1d6fb8;
     padding: 6px;
+}
+
+.progress {
+    height: 1rem; /* Can be anything */
+    position: relative;
+    background: #ccd0d4;
+    width: 107.8%;
+    margin: -2px -12px 3px;
+}
+
+.progress > span {
+    display: block;
+    height: 100%;
+    background-color: rgb(247 185 0);
+    position: relative;
+    overflow: hidden;
+}
+
+.progress > span:after, .animate > span > span {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    bottom: 0;
+    right: 0;
+    background-image: linear-gradient(
+        -45deg,
+        rgba(255, 255, 255, .2) 25%,
+        transparent 25%,
+        transparent 50%,
+        rgba(255, 255, 255, .2) 50%,
+        rgba(255, 255, 255, .2) 75%,
+        transparent 75%,
+        transparent
+    );
+    z-index: 1;
+    background-size: 50px 50px;
+    animation: move 2s linear infinite;
+    overflow: hidden;
+}
+
+.animate > span:after {
+    display: none;
+}
+
+.progress > span:after, .animate > span > span {
+    animation: move 2s linear infinite;
+}
+
+.index_time {
+    border: 1px solid #ffd900;
+    display: inline-block;
+    background-color: #f1f2f2;
+    padding: 3px 12px;
+    margin: 0 0 0 -12px;
+    font-weight: bold;
+}
+
+@keyframes move {
+    0% {
+        background-position: 0 0;
+    }
+    100% {
+        background-position: 50px 50px;
+    }
 }
 
 @keyframes ldio-hokc2a6hk1r {
