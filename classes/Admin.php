@@ -319,11 +319,36 @@ class Admin extends Options
         return false;
     }
 
-    public function isIndexing(): bool
+    public function isIndexing($progress = false)
     {
-        return get_transient('ep_wpcli_sync');
+        $indexing = get_transient('ep_wpcli_sync');
+        if (false !== $indexing) {
+            return $progress ? $indexing : true;
+        }
+
+        return false;
     }
 
+    public function indexTimer($time, $start = true)
+    {
+        $this->updateOption('index_timer_' . ($start ? 'start' : 'stop'), $time);
+    }
+
+    public function getIndexedTime()
+    {
+        $options = $this->options();
+
+        $start = $options['index_timer_start'] ?? 0;
+        $stop = $options['index_timer_stop'] ?? time();
+
+        return date('g\h i\m s\s', ($stop - $start));
+    }
+
+    public function indexTimerClear()
+    {
+        $this->updateOption('index_timer_start', null);
+        $this->updateOption('index_timer_stop', null);
+    }
     /**
      * Start a destructive bulk index.
      * Normally initialised by the plugins admin page and also the presence of a running schedule.
@@ -344,7 +369,6 @@ class Admin extends Options
 
         return null;
     }
-
     /**
      * Managed scheduling for a destructive bulk index
      * Takes in to account the current env. and protects search behaviour for users on production.

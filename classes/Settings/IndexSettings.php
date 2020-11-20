@@ -37,13 +37,13 @@ class IndexSettings extends Page
      * Admin object
      * @var Admin
      */
-    private $admin;
+    public $admin;
 
-    public function __construct()
+    public function __construct(Admin $admin)
     {
         parent::__construct();
 
-        $this->admin = new Admin();
+        $this->admin = $admin;
         self::hooks();
     }
 
@@ -226,8 +226,16 @@ class IndexSettings extends Page
     public function indexStatisticsAjax()
     {
         $output = '';
-        if ($this->admin->isIndexing()) {
+        if ($index_stats = $this->admin->isIndexing(true)) {
+            $indexed_percent = round((($index_stats[0] ?? 0) / ($index_stats[1] ?? 0)) * 100);
             $output .= '<div class="notice notice-warning moj-es-stats-index-notice">
+                    <div class="progress">
+                        <span style="width: ' . $indexed_percent . '%"><span></span></span>
+                    </div>
+                    <small>' . $indexed_percent . '% complete
+                        <span style="float:right">' . $this->admin->getIndexedTime() . '</span>
+                    </small><br>
+
                     <p><strong>Indexing is currently active</strong>
                     <button name="moj_es_settings[index_kill]" value="1" class="button-primary kill_index_button"
                         disabled="disabled">
@@ -239,6 +247,8 @@ class IndexSettings extends Page
                         Stop Indexing
                     </a></p>
                 </div>';
+        } else {
+            $output .= '<small class="index_time">Last index took ' . $this->admin->getIndexedTime() . '</small>';
         }
 
         $output .= '<ul id="inner-indexing-stats">';

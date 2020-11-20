@@ -29,15 +29,14 @@ use MOJElasticSearch\SignAmazonEsRequests;
 use MOJElasticSearch\Settings\IndexSettings;
 
 if (new Auth) {
+    $moj_es_admin = new Admin();
+    $moj_es_settings = new IndexSettings($moj_es_admin);
     new Options;
-    new Admin;
     new Page;
     new SignAmazonEsRequests;
     new ElasticPressHooks;
     new ManageData();
-    new Index();
+    new Index($moj_es_settings);
     new Query();
 
-    // settings
-    new IndexSettings();
 }

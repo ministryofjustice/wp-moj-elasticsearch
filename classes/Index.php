@@ -50,14 +50,14 @@ class Index extends Page
      */
     private $settings;
 
-    public function __construct()
+    public function __construct(IndexSettings $settings)
     {
         parent::__construct();
 
         // construct
         $this->alias = new Alias();
-        $this->admin = new Admin();
-        $this->settings = new IndexSettings();
+        $this->admin = $settings->admin;
+        $this->settings = $settings;
 
         // smaller server on dev
         if ($this->admin->env === 'development') {
@@ -433,13 +433,16 @@ class Index extends Page
                 // Poll for completion
                 $this->alias->pollForCompletion();
 
+                // stop timer
+                $this->admin->indexTimer(time(), false);
+
                 // now we are done, stop the cron hook from running:
                 $timestamp = wp_next_scheduled('moj_es_cron_hook');
                 wp_unschedule_event($timestamp, 'moj_es_cron_hook');
             }
         }
 
-        return;
+        return null;
     }
 
     /**
@@ -461,10 +464,5 @@ class Index extends Page
 
         echo json_encode($stats);
         die();
-    }
-
-    public static function delete($index)
-    {
-        wp_safe_remote_request(get_option('EP_HOST') . $index, ['method' => 'DELETE']);
     }
 }

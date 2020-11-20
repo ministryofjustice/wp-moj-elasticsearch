@@ -2,8 +2,6 @@
 
 namespace MOJElasticSearch;
 
-use MOJElasticSearch\Index as Index;
-
 class Alias
 {
     use Debug;
@@ -16,8 +14,6 @@ class Alias
     {
         $this->url = get_option('ep_host') . '_aliases';
         $this->name = get_option('_moj_es_alias_name');
-
-        $this->index = new Index();
 
         $this->hooks();
     }
@@ -94,7 +90,7 @@ class Alias
             }
 
             // no error... let's remove the old index
-            $this->index->delete($index_old);
+            wp_safe_remote_request(get_option('EP_HOST') . $index_old, ['method' => 'DELETE']);
         }
 
         return $index_updated;
