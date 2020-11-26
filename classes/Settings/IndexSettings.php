@@ -68,7 +68,10 @@ class IndexSettings extends Page
 
         // define fields
         $fields_index = [
-            'latest_stats' => [$this, 'indexStatistics']
+            'latest_stats' => [$this, 'indexStatistics'],
+            'current_index_alias' => [$this, 'currentAlias'],
+            'last_created_index' => [$this, 'lastCreatedIndex']
+
         ];
 
         $fields_index_management = [
@@ -106,6 +109,25 @@ class IndexSettings extends Page
                         </a>
                     </div>';
     }
+
+    public function currentAlias()
+    {
+        $current_alias = get_option('_moj_es_alias_name');
+
+        $current_alias = $current_alias ? $current_alias : 'No alias found.';
+
+        echo $current_alias;
+    }
+
+    public function lastCreatedIndex()
+    {
+        $last_created_index = get_option('_moj_es_index_name');
+
+        $last_created_index  = $last_created_index  ? $last_created_index  : 'No index found.';
+
+        echo $last_created_index ;
+    }
+
 
     private function maybeBulkBodyFormat($key)
     {

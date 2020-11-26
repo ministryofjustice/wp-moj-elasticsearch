@@ -28,7 +28,7 @@ class Alias
 
     public function hooks()
     {
-        add_action('moj_es_poll_for_completion', [$this, 'update']);
+        //add_action('moj_es_poll_for_completion', [$this, 'update']);
     }
 
     /**
