@@ -70,7 +70,9 @@ class IndexSettings extends Page
         $fields_index = [
             'latest_stats' => [$this, 'indexStatistics'],
             'current_index_alias' => [$this, 'currentAlias'],
-            'last_created_index' => [$this, 'lastCreatedIndex']
+            'last_created_index' => [$this, 'lastCreatedIndex'],
+            'list_alias_indexes' => [$this, 'listAliasIndexes'],
+            'add_index_to_alias' => [$this, 'addIndextoAliasButton']
 
         ];
 
@@ -128,6 +130,54 @@ class IndexSettings extends Page
         echo $last_created_index ;
     }
 
+    public function listAliasIndexes()
+    {
+        $current_alias = get_option('_moj_es_alias_name');
+
+        if(!empty($current_alias)) {
+            $url = get_option('EP_HOST') . '_cat/aliases/' . $current_alias . '?v&format=json&h=index';
+
+            $response = wp_safe_remote_get($url);
+
+
+            if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) == 200) {
+
+                $alias_indexes = json_decode(wp_remote_retrieve_body($response));
+
+
+                if (is_array($alias_indexes)) {
+                    foreach ($alias_indexes as $alias_index) { ?>
+
+                        <p><?php echo $alias_index->index; ?></p>
+                        <?php
+                    }
+                } else { ?>
+                    <p>No Indexes are assigned to the alias</p>
+                    <?php
+                }
+            } else {
+                ?>
+                <p>Error Connecting to ElasticSearch</p>
+                <?php
+            }
+        }
+        else {
+            ?>
+            <p>Alias is not set</p>
+            <?php
+        }
+
+    }
+
+    public function addIndextoAliasButton()
+    {
+        ?>
+        <button name='<?= $this->optionName() ?>[add_to_alias_button]' class="button-primary" >
+            Add Index to Alias
+        </button>
+        <p>This will add the last created index to the alias</p>
+        <?php
+    }
 
     private function maybeBulkBodyFormat($key)
     {

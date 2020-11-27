@@ -90,7 +90,7 @@ class Alias
             }
 
             // no error... let's remove the old index
-            wp_safe_remote_request(get_option('EP_HOST') . $index_old, ['method' => 'DELETE']);
+           //  wp_safe_remote_request(get_option('EP_HOST') . $index_old, ['method' => 'DELETE']);
         }
 
         return $index_updated;

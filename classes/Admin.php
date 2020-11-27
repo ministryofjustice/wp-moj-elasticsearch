@@ -108,6 +108,40 @@ class Admin extends Options
             return $this->optionBulkIndex($options);
         }
 
+        // catch add alias button
+        if (isset($options['add_to_alias_button'])) {
+
+
+            $current_alias = get_option('_moj_es_alias_name');
+
+            if (!empty($current_alias)) {
+
+
+                $last_created_index = get_option('_moj_es_index_name');
+
+
+                $search = ['[NEW]', '[ALIAS]'];
+                $replace = [$last_created_index, $current_alias];
+
+                $body = str_replace(
+                    $search,
+                    $replace,
+                    file_get_contents(__DIR__ . '/../assets/json/alias-add.json')
+                );
+
+                $args = [
+                    'headers' => ["Content-Type" => "application/json"],
+                    'body' => $body
+                ];
+
+                $url = get_option('ep_host') . '_aliases';
+
+                $response = wp_safe_remote_post($url, $args);
+
+                return $options;
+            }
+        }
+
         // catch Bulk index action ~ kill
         if (isset($options['index_kill'])) {
             $process_id = exec('pgrep -u www-data php$');
@@ -349,6 +383,7 @@ class Admin extends Options
         $this->updateOption('index_timer_start', null);
         $this->updateOption('index_timer_stop', null);
     }
+
     /**
      * Start a destructive bulk index.
      * Normally initialised by the plugins admin page and also the presence of a running schedule.
@@ -369,6 +404,7 @@ class Admin extends Options
 
         return null;
     }
+
     /**
      * Managed scheduling for a destructive bulk index
      * Takes in to account the current env. and protects search behaviour for users on production.
