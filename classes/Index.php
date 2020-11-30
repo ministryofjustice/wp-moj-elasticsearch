@@ -200,8 +200,9 @@ class Index extends Page
             $new_index = $this->getIndexName();
         }
 
-        // intranet.local.basilisk
-        $new_index = $this->alias->name . "." . $new_index;
+        // intranet.local[.rob].basilisk
+        $namespace = (function_exists('env') ? env('ES_ALIAS_NAMESPACE') : null);
+        $new_index = $this->alias->name . "." . ($namespace ? $namespace . "." : "") . $new_index;
 
         // first run
         if (!$this->index_name_current) {

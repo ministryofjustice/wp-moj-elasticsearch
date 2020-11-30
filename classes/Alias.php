@@ -28,7 +28,8 @@ class Alias
 
     public function hooks()
     {
-        //add_action('moj_es_poll_for_completion', [$this, 'update']);
+        add_action('moj_es_poll_for_completion', [$this, 'update']);
+        add_action('moj_es_delete_index', [$this, 'deleteIndex']);
     }
 
     /**
@@ -37,9 +38,10 @@ class Alias
     public function update()
     {
         $index_updated = false;
-        $queue_is_empty = $this->isESQueueEmpty();
 
-        if ($queue_is_empty && wp_next_scheduled('moj_es_poll_for_completion')) {
+        $bulk_is_active = get_option('_moj_es_bulk_index_active', false);
+
+        if ($bulk_is_active && ($this->isESQueueEmpty() && wp_next_scheduled('moj_es_poll_for_completion'))) {
             // prevent cron hook from running:
             $timestamp = wp_next_scheduled('moj_es_poll_for_completion');
             wp_unschedule_event($timestamp, 'moj_es_poll_for_completion');
@@ -47,7 +49,11 @@ class Alias
             $index_old = get_option('_moj_es_index_name');
             $index_new = get_option('_moj_es_new_index_name');
 
-            $debugging = $this->debug('OLD INDEX NAME', $index_old);
+            // cache the old index name
+            $index_old = update_option('_moj_es_index_to_delete', $index_old);
+
+            $debugging = $this->debug('DOMAIN TO DELETE IN 30 DAYS', $index_old);
+            $debugging .= $this->debug('OLD INDEX NAME', $index_old);
             $debugging .= $this->debug('NEW INDEX NAME', $index_new);
 
             $template = 'update.json'; // this could have multiple [add.json, delete.json]
@@ -89,8 +95,14 @@ class Alias
                 return false;
             }
 
-            // no error... let's remove the old index
-           //  wp_safe_remote_request(get_option('EP_HOST') . $index_old, ['method' => 'DELETE']);
+            // no error... let's create a cron to remove the index safely in 30 days
+            if (!wp_next_scheduled('moj_es_delete_index')) {
+                wp_mail(get_option('admin_email'), '[ES DELETE INDEX]', $debugging);
+                //wp_schedule_event(time(), 'one_minute', 'moj_es_delete_index');
+            }
+
+            // set active to false
+            update_option('_moj_es_bulk_index_active', false);
         }
 
         return $index_updated;
@@ -116,6 +128,15 @@ class Alias
         wp_mail('me@forced.com', 'Shutdown by user', $this->debug('FORCED', 'BOOHOO'));
 
         return null;
+    }
+
+    public function deleteIndex()
+    {
+        $cached_index_old = get_option('_moj_es_index_to_delete');
+        $response = wp_safe_remote_request(get_option('EP_HOST') . $cached_index_old, ['method' => 'DELETE']);
+        if (!is_wp_error($response)) {
+            update_option('_moj_es_index_to_delete', null);
+        }
     }
 
     public function isESQueueEmpty()
