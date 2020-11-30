@@ -69,10 +69,7 @@ class IndexSettings extends Page
         // define fields
         $fields_index = [
             'latest_stats' => [$this, 'indexStatistics'],
-            'current_index_alias' => [$this, 'currentAlias'],
-            'last_created_index' => [$this, 'lastCreatedIndex'],
-            'list_alias_indexes' => [$this, 'listAliasIndexes'],
-            'add_index_to_alias' => [$this, 'addIndextoAliasButton']
+            'alias_status' => [$this, 'currentStatus']
 
         ];
 
@@ -112,38 +109,32 @@ class IndexSettings extends Page
                     </div>';
     }
 
-    public function currentAlias()
+    public function currentStatus()
     {
         $current_alias = get_option('_moj_es_alias_name');
-
-        $current_alias = $current_alias ? $current_alias : 'No alias found.';
-
-        echo $current_alias;
-    }
-
-    public function lastCreatedIndex()
-    {
         $last_created_index = get_option('_moj_es_index_name');
-
-        $last_created_index  = $last_created_index  ? $last_created_index  : 'No index found.';
-
-        echo $last_created_index ;
+        $current_alias = $current_alias ? $current_alias : 'No alias found.';
+        ?>
+        <p><strong>Alias name</strong><br><?= $current_alias ?><br></p>
+        <p>-------------</p>
+        <p><strong>Active Index</strong><br><?= $last_created_index ?><br></p>
+        <p>-------------</p>
+        <p><strong>Attached indexes</strong><br>
+            <small>The following index names are attached to the alias (<em><?= $current_alias ?></em>) and
+                will produce results when queried.</small>
+            <?= $this->listAliasIndexes($current_alias) ?>
+        </p>
+        <?php
     }
 
-    public function listAliasIndexes()
+    public function listAliasIndexes($current_alias)
     {
-        $current_alias = get_option('_moj_es_alias_name');
-
-        if(!empty($current_alias)) {
+        if (!empty($current_alias)) {
             $url = get_option('EP_HOST') . '_cat/aliases/' . $current_alias . '?v&format=json&h=index';
-
             $response = wp_safe_remote_get($url);
 
-
             if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) == 200) {
-
                 $alias_indexes = json_decode(wp_remote_retrieve_body($response));
-
 
                 if (is_array($alias_indexes)) {
                     foreach ($alias_indexes as $alias_index) { ?>
@@ -160,23 +151,11 @@ class IndexSettings extends Page
                 <p>Error Connecting to ElasticSearch</p>
                 <?php
             }
-        }
-        else {
+        } else {
             ?>
             <p>Alias is not set</p>
             <?php
         }
-
-    }
-
-    public function addIndextoAliasButton()
-    {
-        ?>
-        <button name='<?= $this->optionName() ?>[add_to_alias_button]' class="button-primary" >
-            Add Index to Alias
-        </button>
-        <p>This will add the last created index to the alias</p>
-        <?php
     }
 
     private function maybeBulkBodyFormat($key)
