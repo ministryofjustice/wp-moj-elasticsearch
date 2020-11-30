@@ -113,14 +113,18 @@ class IndexSettings extends Page
     {
         $current_alias = get_option('_moj_es_alias_name');
         $last_created_index = get_option('_moj_es_index_name');
-        $new_created_index = get_option('_moj_es_new_index_name') ?? 'Populated when indexing is active.';
         $current_alias = $current_alias ? $current_alias : 'No alias found.';
+        $end_date = (!$this->admin->isIndexing()
+            ? '<br>Created on ' . date("F j, Y, g:i a", get_option('_moj_es_index_timer_stop'))
+            : ''
+        );
         ?>
         <p><small><strong>Alias name</strong></small><br><?= $current_alias ?><br></p>
         <p>-------------</p>
-        <p><small><strong>Active Index (being queried)</strong></small><br><?= $last_created_index ?><br></p>
-        <p>-------------</p>
-        <p><small><strong>New Index (being built)</strong></small><br><?= $new_created_index ?><br></p>
+        <p><small><strong>Newest index (being queried)</strong></small>
+            <small><?= $end_date ?></small><br>
+            <?= $last_created_index ?>
+            <br></p>
         <p>-------------</p>
         <p><small><strong>Attached indexes</strong></small><br>
             <small>The following index names are attached to the alias (<em><?= $current_alias ?></em>) and
@@ -285,12 +289,14 @@ class IndexSettings extends Page
             $indexed_percent = ($total_sent > 0 ? round(($total_sent / $total_left) * 100) : 0);
             $output .= '<div class="notice notice-warning moj-es-stats-index-notice">
                     <div class="progress">
-                        <span style="width: ' . $indexed_percent . '%"><span></span></span>
+                        <span style="width: ' . $indexed_percent . '%">
+                            <span></span>
+                        </span>
+                        <small>' . get_option('_moj_es_new_index_name') . '</small>
                     </div>
                     <small>' . $indexed_percent . '% complete
                         <span style="float:right">' . $this->admin->getIndexedTime() . '</span>
-                    </small><br>
-
+                    </small>
                     <p><strong>Indexing is currently active</strong>
                     <button name="moj_es_settings[index_kill]" value="1" class="button-primary kill_index_button"
                         disabled="disabled">

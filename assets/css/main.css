@@ -11,7 +11,8 @@ a.nav-tab:focus {
 }
 
 .moj-es h2,
-p > small > strong {
+p > small > strong,
+.green {
     color: #0d8730
 }
 
@@ -67,6 +68,11 @@ p > small > strong {
     text-align: left;
 }
 
+.moj-es-stats-index-notice .new-index-name {
+    text-align: center;
+    font-style: italic;
+}
+
 #inner-indexing-stats {
     opacity: 1;
 }
@@ -94,6 +100,13 @@ p > small > strong {
     background-color: rgb(247 185 0);
     position: relative;
     overflow: hidden;
+}
+.progress > small {
+    position: absolute;
+    width:100%;
+    top: 0;
+    text-align: center;
+    font-style: italic;
 }
 
 .progress > span:after, .animate > span > span {
