@@ -114,8 +114,9 @@ class IndexSettings extends Page
         $current_alias = get_option('_moj_es_alias_name');
         $last_created_index = get_option('_moj_es_index_name');
         $current_alias = $current_alias ? $current_alias : 'No alias found.';
-        $end_date = (!$this->admin->isIndexing()
-            ? '<br>Created on ' . date("F j, Y, g:i a", get_option('_moj_es_index_timer_stop'))
+        $end_date = get_option('_moj_es_index_timer_stop');
+        $end_date = ($end_date
+            ? '<br>Created on ' . date("F j, Y, g:i a", $end_date)
             : ''
         );
         ?>

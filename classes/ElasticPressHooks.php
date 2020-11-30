@@ -17,9 +17,8 @@ class ElasticPressHooks
      */
     private $alias_name = '';
 
-    public function __construct()
+    public function __construct($alias)
     {
-        $alias = new Alias();
         $this->alias_name = $alias->name;
         $this->hooks();
     }

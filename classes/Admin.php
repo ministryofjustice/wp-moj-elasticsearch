@@ -267,6 +267,11 @@ class Admin extends Options
             'display' => esc_html__('Every Minute')
         ];
 
+        $schedules['one_month'] = [
+            'interval' => 60,
+            'display' => esc_html__('Every Minute')
+        ];
+
         return $schedules;
     }
 

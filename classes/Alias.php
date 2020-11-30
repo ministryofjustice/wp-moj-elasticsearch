@@ -38,7 +38,6 @@ class Alias
     public function update()
     {
         $index_updated = false;
-
         $bulk_is_active = get_option('_moj_es_bulk_index_active', false);
 
         if ($bulk_is_active && ($this->isESQueueEmpty() && wp_next_scheduled('moj_es_poll_for_completion'))) {
@@ -50,7 +49,7 @@ class Alias
             $index_new = get_option('_moj_es_new_index_name');
 
             // cache the old index name
-            $index_old = update_option('_moj_es_index_to_delete', $index_old);
+            update_option('_moj_es_index_to_delete', $index_old);
 
             $debugging = $this->debug('DOMAIN TO DELETE IN 30 DAYS', $index_old);
             $debugging .= $this->debug('OLD INDEX NAME', $index_old);

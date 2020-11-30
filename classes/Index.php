@@ -50,12 +50,12 @@ class Index extends Page
      */
     private $settings;
 
-    public function __construct(IndexSettings $settings)
+    public function __construct(IndexSettings $settings, Alias $alias)
     {
         parent::__construct();
 
         // construct
-        $this->alias = new Alias();
+        $this->alias = $alias;
         $this->admin = $settings->admin;
         $this->settings = $settings;
 
@@ -435,7 +435,7 @@ class Index extends Page
                 $this->alias->pollForCompletion();
 
                 // stop timer
-                $this->admin->indexTimer(time(), false);
+                $this->admin->indexTimer(false);
 
                 // now we are done, stop the cron hook from running:
                 $timestamp = wp_next_scheduled('moj_es_cron_hook');

@@ -16,6 +16,7 @@ require(MOJ_ROOT_DIR . '/vendor/autoload.php');
 
 use MOJElasticSearch\Options;
 use MOJElasticSearch\Settings\Page;
+use MOJElasticSearch\Alias;
 use MOJElasticSearch\Admin;
 use MOJElasticSearch\Auth;
 use MOJElasticSearch\ElasticPressHooks;
@@ -28,13 +29,14 @@ use MOJElasticSearch\SignAmazonEsRequests;
 use MOJElasticSearch\Settings\IndexSettings;
 
 if (new Auth) {
-    new ElasticPressHooks;
+    $moj_es_alias = new Alias();
     $moj_es_admin = new Admin();
+    new ElasticPressHooks($moj_es_alias);
     $moj_es_settings = new IndexSettings($moj_es_admin);
     new Options;
     new Page;
     new SignAmazonEsRequests;
     new ManageData();
-    new Index($moj_es_settings);
+    new Index($moj_es_settings, $moj_es_alias);
     new Query();
 }
