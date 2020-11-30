@@ -10,7 +10,8 @@ a.nav-tab:focus {
     display: none;
 }
 
-.moj-es h2 {
+.moj-es h2,
+p > small > strong {
     color: #0d8730
 }
 

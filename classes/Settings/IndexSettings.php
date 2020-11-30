@@ -113,13 +113,16 @@ class IndexSettings extends Page
     {
         $current_alias = get_option('_moj_es_alias_name');
         $last_created_index = get_option('_moj_es_index_name');
+        $new_created_index = get_option('_moj_es_new_index_name') ?? 'Populated when indexing is active.';
         $current_alias = $current_alias ? $current_alias : 'No alias found.';
         ?>
-        <p><strong>Alias name</strong><br><?= $current_alias ?><br></p>
+        <p><small><strong>Alias name</strong></small><br><?= $current_alias ?><br></p>
         <p>-------------</p>
-        <p><strong>Active Index</strong><br><?= $last_created_index ?><br></p>
+        <p><small><strong>Active Index (being queried)</strong></small><br><?= $last_created_index ?><br></p>
         <p>-------------</p>
-        <p><strong>Attached indexes</strong><br>
+        <p><small><strong>New Index (being built)</strong></small><br><?= $new_created_index ?><br></p>
+        <p>-------------</p>
+        <p><small><strong>Attached indexes</strong></small><br>
             <small>The following index names are attached to the alias (<em><?= $current_alias ?></em>) and
                 will produce results when queried.</small>
             <?= $this->listAliasIndexes($current_alias) ?>
@@ -138,7 +141,6 @@ class IndexSettings extends Page
 
                 if (is_array($alias_indexes)) {
                     foreach ($alias_indexes as $alias_index) { ?>
-
                         <p><?php echo $alias_index->index; ?></p>
                         <?php
                     }
@@ -278,7 +280,9 @@ class IndexSettings extends Page
     {
         $output = '';
         if ($index_stats = $this->admin->isIndexing(true)) {
-            $indexed_percent = round((($index_stats[0] ?? 0) / ($index_stats[1] ?? 0)) * 100);
+            $total_sent = $index_stats[0] ?? 0;
+            $total_left = $index_stats[1] ?? 0;
+            $indexed_percent = ($total_sent > 0 ? round(($total_sent / $total_left) * 100) : 0);
             $output .= '<div class="notice notice-warning moj-es-stats-index-notice">
                     <div class="progress">
                         <span style="width: ' . $indexed_percent . '%"><span></span></span>

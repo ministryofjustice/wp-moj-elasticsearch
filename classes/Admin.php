@@ -108,40 +108,6 @@ class Admin extends Options
             return $this->optionBulkIndex($options);
         }
 
-        // catch add alias button
-        if (isset($options['add_to_alias_button'])) {
-
-
-            $current_alias = get_option('_moj_es_alias_name');
-
-            if (!empty($current_alias)) {
-
-
-                $last_created_index = get_option('_moj_es_index_name');
-
-
-                $search = ['[NEW]', '[ALIAS]'];
-                $replace = [$last_created_index, $current_alias];
-
-                $body = str_replace(
-                    $search,
-                    $replace,
-                    file_get_contents(__DIR__ . '/../assets/json/alias-add.json')
-                );
-
-                $args = [
-                    'headers' => ["Content-Type" => "application/json"],
-                    'body' => $body
-                ];
-
-                $url = get_option('ep_host') . '_aliases';
-
-                $response = wp_safe_remote_post($url, $args);
-
-                return $options;
-            }
-        }
-
         // catch Bulk index action ~ kill
         if (isset($options['index_kill'])) {
             $process_id = exec('pgrep -u www-data php$');
@@ -363,25 +329,27 @@ class Admin extends Options
         return false;
     }
 
-    public function indexTimer($time, $start = true)
+    /**
+     * Start and stop the timer
+     * @param bool $start
+     */
+    public function indexTimer($start = true)
     {
-        $this->updateOption('index_timer_' . ($start ? 'start' : 'stop'), $time);
+        if ($start) {
+            update_option('_moj_es_index_timer_start', time());
+            delete_option('_moj_es_index_timer_stop');
+            return;
+        }
+
+        update_option('_moj_es_index_timer_stop', time());
     }
 
     public function getIndexedTime()
     {
-        $options = $this->options();
+        $start = get_option('_moj_es_index_timer_start');
+        $stop = get_option('_moj_es_index_timer_stop', time());
 
-        $start = $options['index_timer_start'] ?? 0;
-        $stop = $options['index_timer_stop'] ?? time();
-
-        return date('g\h i\m s\s', ($stop - $start));
-    }
-
-    public function indexTimerClear()
-    {
-        $this->updateOption('index_timer_start', null);
-        $this->updateOption('index_timer_stop', null);
+        return date('G\h i\m s\s', ($stop - $start));
     }
 
     /**
@@ -393,6 +361,7 @@ class Admin extends Options
     private function beginBackgroundIndex()
     {
         $this->clearStats();
+        $this->indexTimer(true);
         update_option('_moj_es_bulk_index_active', true);
         exec("wp elasticpress index --setup --per-page=1 --allow-root > /dev/null 2>&1 & echo $!;");
 
