@@ -1,6 +1,5 @@
 <?php
 
-
 namespace MOJElasticSearch\Settings;
 
 use MOJElasticSearch\Admin;
@@ -69,6 +68,7 @@ class IndexSettings extends Page
         // define fields
         $fields_index = [
             'latest_stats' => [$this, 'indexStatistics'],
+            'index_status' => [$this, 'indexStatus'],
             'alias_status' => [$this, 'currentStatus']
 
         ];
@@ -109,6 +109,17 @@ class IndexSettings extends Page
                     </div>';
     }
 
+    public function indexStatus()
+    {
+        $last_created_index = get_option('_moj_es_index_name');
+        ?>
+
+        <p><small><strong>Last completed index</strong></small><br>
+            <?= $last_created_index ?>
+            <br></p>
+        <?php
+    }
+
     public function currentStatus()
     {
         $current_alias = get_option('_moj_es_alias_name');
@@ -120,14 +131,9 @@ class IndexSettings extends Page
             : ''
         );
         ?>
-        <p><small><strong>Alias name</strong></small><br><?= $current_alias ?><br></p>
+        <p><small><strong>Alias</strong></small><br><?= $current_alias ?><br></p>
         <p>-------------</p>
-        <p><small><strong>Newest index (being queried)</strong></small>
-            <small><?= $end_date ?></small><br>
-            <?= $last_created_index ?>
-            <br></p>
-        <p>-------------</p>
-        <p><small><strong>Attached indexes</strong></small><br>
+        <p><small><strong>Attached indices</strong></small><br>
             <small>The following index names are attached to the alias (<em><?= $current_alias ?></em>) and
                 will produce results when queried.</small>
             <?= $this->listAliasIndexes($current_alias) ?>
@@ -203,14 +209,23 @@ class IndexSettings extends Page
                 I'm ready to rebuild the index... GO!
             </a>
         </div>
-        <button name='<?= $this->optionName() ?>[index_button]' class="button-primary index_button" disabled="disabled">
-            Build new index
-        </button>
-        <a href="#TB_inline?&width=400&height=150&inlineId=my-content-id" class="button-primary thickbox"
-           title="Rebuild Elasticsearch Index">
-            Build new index
-        </a>
-        <p><?= $description ?></p>
+        <?php
+
+        $url = get_option('EP_HOST') . '_cat/indices/';
+        $response = wp_safe_remote_get($url);
+
+        if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) == 200) : ?>
+            <button name='<?= $this->optionName() ?>[index_button]' class="button-primary index_button" disabled="disabled">
+                Build new index
+            </button>
+            <a href="#TB_inline?&width=400&height=150&inlineId=my-content-id" class="button-primary thickbox"
+            title="Rebuild Elasticsearch Index">
+                Build new index
+            </a>
+            <p><?= $description ?></p>
+        <?php else : ?>
+            <p>Error connecting to Elasticsearch.</p>
+        <?php endif; ?>
         <?php
     }
 
