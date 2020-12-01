@@ -1,6 +1,5 @@
 <?php
 
-
 namespace MOJElasticSearch\Settings;
 
 use MOJElasticSearch\Admin;
@@ -224,7 +223,7 @@ class IndexSettings extends Page
                 Build new index
             </a>
             <p><?= $description ?></p>
-        <?php else: ?>
+        <?php else : ?>
             <p>Error connecting to Elasticsearch.</p>
         <?php endif; ?>
         <?php
