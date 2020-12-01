@@ -66,6 +66,7 @@ p > small > strong,
     display: inline-block;
     min-width: 73px;
     text-align: left;
+    padding-top: 3px;
 }
 
 .moj-es-stats-index-notice .new-index-name {
