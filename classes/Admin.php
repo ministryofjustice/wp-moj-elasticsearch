@@ -160,7 +160,7 @@ class Admin extends Options
 
         // schedule a task to start the index
         if (!wp_next_scheduled('moj_es_exec_index')) {
-            wp_schedule_event(time(), 'one_minute', 'moj_es_exec_index');
+            wp_schedule_event(time(), $this->cronInterval('every_minute'), 'moj_es_exec_index');
         }
 
         // check now in case we need to run.
@@ -257,22 +257,18 @@ class Admin extends Options
      */
     public function addCronIntervals($schedules): array
     {
-        $schedules['five_seconds'] = [
-            'interval' => 5,
-            'display' => esc_html__('Every 5 seconds')
-        ];
-
-        $schedules['one_minute'] = [
-            'interval' => 60,
-            'display' => esc_html__('Every Minute')
-        ];
-
-        $schedules['one_month'] = [
+        // moj_es_every_minute
+        $schedules[$this->cronInterval('every_minute')] = [
             'interval' => 60,
             'display' => esc_html__('Every Minute')
         ];
 
         return $schedules;
+    }
+
+    public function cronInterval($interval)
+    {
+        return $this->prefix . '_' . $interval;
     }
 
     /**

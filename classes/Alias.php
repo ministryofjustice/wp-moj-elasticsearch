@@ -87,7 +87,7 @@ class Alias
             $debugging .= $this->debug('_moj_es_index_name', get_option('_moj_es_index_name'));
             $debugging .= $this->debug('_moj_es_new_index_name', get_option('_moj_es_new_index_name'));
 
-            wp_mail('me@debuggin.com', 'DEBUGGING', $debugging);
+            wp_mail(get_option('admin_email'), 'DEBUGGING', $debugging);
 
             if (is_wp_error($response)) {
                 trigger_error('MoJ ES  W A R N I N G: ' . $response->get_error_message() . '.');
@@ -97,7 +97,7 @@ class Alias
             // no error... let's create a cron to remove the index safely in 30 days
             if (!wp_next_scheduled('moj_es_delete_index')) {
                 wp_mail(get_option('admin_email'), '[ES DELETE INDEX]', $debugging);
-                //wp_schedule_event(time(), 'one_minute', 'moj_es_delete_index');
+                //wp_schedule_event(time(), 'moj_es_every_minute', 'moj_es_delete_index');
             }
 
             // set active to false
@@ -116,15 +116,15 @@ class Alias
     public function pollForCompletion()
     {
         if (false === get_transient('moj_es_index_force_stopped')) {
-            // schedule a task to clean up the index once it has finished
+            // schedule a task to complete the index process, once ES has finished
             if (!wp_next_scheduled('moj_es_poll_for_completion')) {
-                wp_schedule_event(time(), 'one_minute', 'moj_es_poll_for_completion');
+                wp_schedule_event(time(), 'moj_es_every_minute', 'moj_es_poll_for_completion');
             }
 
             return true;
         }
 
-        wp_mail('me@forced.com', 'Shutdown by user', $this->debug('FORCED', 'BOOHOO'));
+        wp_mail(get_option('admin_email'), 'Shutdown by user', $this->debug('FORCED', 'BOOHOO'));
 
         return null;
     }
@@ -132,6 +132,10 @@ class Alias
     public function deleteIndex()
     {
         $cached_index_old = get_option('_moj_es_index_to_delete');
+        if (!$cached_index_old) {
+            return;
+        }
+
         $response = wp_safe_remote_request(get_option('EP_HOST') . $cached_index_old, ['method' => 'DELETE']);
         if (!is_wp_error($response)) {
             update_option('_moj_es_index_to_delete', null);

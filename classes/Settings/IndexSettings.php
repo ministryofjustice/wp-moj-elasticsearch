@@ -112,24 +112,26 @@ class IndexSettings extends Page
     public function indexStatus()
     {
         $last_created_index = get_option('_moj_es_index_name');
+        $end_date = get_option('_moj_es_index_timer_stop');
+        $end_date = ($end_date
+            ? '<br>Created on ' . date("F j, Y, g:i a", $end_date)
+            : ''
+        );
         ?>
 
-        <p><small><strong>Last completed index</strong></small><br>
+        <p><small><strong>Last completed index</strong>
+            <?= $end_date ?>
+            <br></small>
             <?= $last_created_index ?>
-            <br></p>
+            <br>
+        </p>
         <?php
     }
 
     public function currentStatus()
     {
         $current_alias = get_option('_moj_es_alias_name');
-        $last_created_index = get_option('_moj_es_index_name');
         $current_alias = $current_alias ? $current_alias : 'No alias found.';
-        $end_date = get_option('_moj_es_index_timer_stop');
-        $end_date = ($end_date
-            ? '<br>Created on ' . date("F j, Y, g:i a", $end_date)
-            : ''
-        );
         ?>
         <p><small><strong>Alias</strong></small><br><?= $current_alias ?><br></p>
         <p>-------------</p>
