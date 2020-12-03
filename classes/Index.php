@@ -77,7 +77,7 @@ class Index extends Page
     public function hooks()
     {
         add_filter('ep_pre_request_url', [$this, 'request'], 11, 5);
-        add_action('moj_es_cron_hook', [$this, 'cleanUpIndexing']);
+        add_action('moj_es_cleanup_cron', [$this, 'cleanUpIndexing']);
         add_action('plugins_loaded', [$this, 'cleanUpIndexingCheck']);
         add_action('wp_ajax_stats_load', [$this, 'getStatsHTML']);
         add_filter('ep_index_name', [$this, 'indexNames'], 11, 1);
@@ -107,8 +107,8 @@ class Index extends Page
         }
 
         // schedule a task to clean up the index once it has finished
-        if (!wp_next_scheduled('moj_es_cron_hook')) {
-            wp_schedule_event(time(), 'one_minute', 'moj_es_cron_hook');
+        if (!wp_next_scheduled('moj_es_cleanup_cron')) {
+            wp_schedule_event(time(), $this->admin->cronInterval('every_minute'), 'moj_es_cleanup_cron');
         }
 
         $allow_methods = [
@@ -144,8 +144,8 @@ class Index extends Page
     }
 
     /**
-     * This method fires after the alias has been set in \ElasticPressHooks
-     * If the system is currently indexing, the alias is returned.
+     * This method fires after the alias has been set in \ElasticPressHooks - as a direct result of priority
+     * If the system is not indexing, the alias is returned.
      * Hooked into filter 'ep_index_name'
      *
      * @param string $alias_name
@@ -438,8 +438,8 @@ class Index extends Page
                 $this->admin->indexTimer(false);
 
                 // now we are done, stop the cron hook from running:
-                $timestamp = wp_next_scheduled('moj_es_cron_hook');
-                wp_unschedule_event($timestamp, 'moj_es_cron_hook');
+                $timestamp = wp_next_scheduled('moj_es_cleanup_cron');
+                wp_unschedule_event($timestamp, 'moj_es_cleanup_cron');
             }
         }
 
