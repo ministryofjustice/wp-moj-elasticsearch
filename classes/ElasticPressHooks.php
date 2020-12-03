@@ -34,6 +34,8 @@ class ElasticPressHooks
         add_filter('ep_index_name', [$this, 'aliasName'], 10, 1);
         add_filter('ep_config_mapping', [$this, 'mapCustomConfig'], 10, 1);
         add_filter('ep_config_mapping_request', [$this, 'mapRequest'], 10, 1);
+        add_filter('ep_post_mapping', [$this, 'mapCustomPostConfig'], 10, 1);
+        add_filter('ep_prepare_meta_excluded_public_keys', [$this, 'mapMetaExcludePublicKeys'], 10, 2);
     }
 
     /**
@@ -177,5 +179,65 @@ class ElasticPressHooks
         );
 
         return $mapping;
+    }
+
+    /**
+     * Add custom configurations to ElasticSearch mapping
+     * @param array
+     * @return array
+     */
+    public function mapCustomPostConfig(array $mapping): array
+    {
+        // Check mapping exists in the expected data type
+        if (!isset($mapping) || !is_array($mapping)) {
+            echo 'Error mapping issue, mapping does not appear to exist.';
+            return $mapping;
+        }
+
+        // remove
+        unset($mapping['mappings']['properties']['post_author']);
+        unset($mapping['mappings']['properties']['post_content_filtered']);
+        unset($mapping['mappings']['properties']['post_parent']);
+        unset($mapping['mappings']['properties']['guid']);
+
+        return $mapping;
+    }
+
+    /**
+     * Exclude ElasticSearch mapping meta
+     * @param array
+     * @return array
+     */
+    public function mapMetaExcludePublicKeys($keys, $post): array
+    {
+        $excluded = [
+            'lbfw_likes',
+            'dw_comments_on',
+            'oasis_current_revision',
+            'comment_disabled_status',
+            'dw_hide_page_details',
+            'dw_hq_guidance_bottom',
+            'keywords',
+            'related_docs_scanned',
+            'related_docs',
+            'is_imported',
+            'Content section',
+            'disable_banner',
+            'dw_banner_link',
+            'dw_banner_url',
+            'dw_campaign_colour',
+            'dw_campaign_skin',
+            'dw_hq_guidance_bottom',
+            'enable_agency_about_us',
+            'dw_tag',
+            'fork_from_post_id',
+            'enable_moj_about_us',
+            'enable_agency_about_us',
+            'full_width_page_banner',
+            'oasis_is_in_workflow',
+            'moj_description'
+        ];
+
+        return $excluded;
     }
 }
