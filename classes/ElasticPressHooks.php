@@ -221,7 +221,7 @@ class ElasticPressHooks
             'related_docs_scanned',
             'related_docs',
             'is_imported',
-            'Content section',
+            'dw_lhs_menu_on',
             'disable_banner',
             'dw_banner_link',
             'dw_banner_url',
