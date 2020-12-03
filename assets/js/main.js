@@ -134,7 +134,7 @@ jQuery(function ($) {
                     clearInterval(statInterval)
                     statInterval = null
                     polling_num = 1
-                    setTimeout(get_stats, 20000)
+                    setTimeout(get_stats, 8000)
                 }
             })
         })()

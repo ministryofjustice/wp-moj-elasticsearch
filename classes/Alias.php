@@ -10,8 +10,14 @@ class Alias
     public $name;
     public $index;
 
-    public function __construct()
+    /**
+     * @var Admin
+     */
+    private $admin;
+
+    public function __construct(Admin $admin)
     {
+        $this->admin = $admin;
         $this->url = get_option('ep_host') . '_aliases';
         $this->name = get_option('_moj_es_alias_name');
 
@@ -48,18 +54,16 @@ class Alias
             $index_old = get_option('_moj_es_index_name');
             $index_new = get_option('_moj_es_new_index_name');
 
-            // cache the old index name
+            // cache the old index name for deletion
+            $safe_delete = true; // in case of first run
             update_option('_moj_es_index_to_delete', $index_old);
-
-            $debugging = $this->debug('DOMAIN TO DELETE IN 30 DAYS', $index_old);
-            $debugging .= $this->debug('OLD INDEX NAME', $index_old);
-            $debugging .= $this->debug('NEW INDEX NAME', $index_new);
 
             $template = 'update.json'; // this could have multiple [add.json, delete.json]
 
             // first run
             if ($index_new === $index_old) {
                 $template = 'add.json';
+                $safe_delete = false; // we cannot delete the index we have just created
             }
 
             // track the newly created index
@@ -84,20 +88,14 @@ class Alias
             // clear new index name
             update_option('_moj_es_new_index_name', null);
 
-            $debugging .= $this->debug('_moj_es_index_name', get_option('_moj_es_index_name'));
-            $debugging .= $this->debug('_moj_es_new_index_name', get_option('_moj_es_new_index_name'));
-
-            wp_mail(get_option('admin_email'), 'DEBUGGING', $debugging);
-
             if (is_wp_error($response)) {
                 trigger_error('MoJ ES  W A R N I N G: ' . $response->get_error_message() . '.');
                 return false;
             }
 
-            // no error... let's create a cron to remove the index safely in 30 days
-            if (!wp_next_scheduled('moj_es_delete_index')) {
-                wp_mail(get_option('admin_email'), '[ES DELETE INDEX]', $debugging);
-                //wp_schedule_event(time(), 'moj_es_every_minute', 'moj_es_delete_index');
+            // no error... let's create a task to remove the index safely in 60 days
+            if ($safe_delete) {
+                $this->scheduleDeletion($index_old);
             }
 
             // set active to false
@@ -116,9 +114,13 @@ class Alias
     public function pollForCompletion()
     {
         if (false === get_transient('moj_es_index_force_stopped')) {
-            // schedule a task to complete the index process, once ES has finished
+            // schedule a task to complete the index process
             if (!wp_next_scheduled('moj_es_poll_for_completion')) {
-                wp_schedule_event(time(), 'moj_es_every_minute', 'moj_es_poll_for_completion');
+                wp_schedule_event(
+                    time(),
+                    $this->admin->cronInterval('every_minute'),
+                    'moj_es_poll_for_completion'
+                );
             }
 
             return true;
@@ -138,7 +140,8 @@ class Alias
 
         $response = wp_safe_remote_request(get_option('EP_HOST') . $cached_index_old, ['method' => 'DELETE']);
         if (!is_wp_error($response)) {
-            update_option('_moj_es_index_to_delete', null);
+            delete_option('_moj_es_index_to_delete');
+            wp_clear_scheduled_hook('moj_es_delete_index');
         }
     }
 
@@ -158,5 +161,21 @@ class Alias
         }
 
         return false;
+    }
+
+    private function scheduleDeletion($index)
+    {
+        $sixty_days = strtotime('+60 days');
+        wp_clear_scheduled_hook('moj_es_delete_index');
+        wp_schedule_single_event($sixty_days, 'moj_es_delete_index');
+        wp_mail(
+            get_option('admin_email'),
+            '[MOJ ES W A R N I N G] Index will die in 60 days',
+            $this->debug(
+                'INDEX HAS BEEN SCHEDULED FOR DELETE',
+                'Nb. ' . $index . ' to be removed on ' . date("F j, Y, g:i a", $sixty_days) .
+                ' ... you may prevent the action by deleting the task: wp cron event delete moj_es_delete_index'
+            )
+        );
     }
 }

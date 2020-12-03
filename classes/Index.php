@@ -434,12 +434,12 @@ class Index extends Page
                 // Poll for completion
                 $this->alias->pollForCompletion();
 
-                // stop timer
-                $this->admin->indexTimer(false);
-
                 // now we are done, stop the cron hook from running:
                 $timestamp = wp_next_scheduled('moj_es_cleanup_cron');
                 wp_unschedule_event($timestamp, 'moj_es_cleanup_cron');
+
+                // stop timer
+                $this->admin->indexTimer(false);
             }
         }
 

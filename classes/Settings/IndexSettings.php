@@ -327,7 +327,7 @@ class IndexSettings extends Page
                     </a></p>
                 </div>';
         } else {
-            $output .= '<small class="index_time">Last index took ' . $this->admin->getIndexedTime() . '</small>';
+            $output .= '<span class="index_time">Last index took ' . $this->admin->getIndexedTime() . '</span>';
         }
 
         $output .= '<ul id="inner-indexing-stats">';
@@ -340,8 +340,8 @@ class IndexSettings extends Page
 
             if ($key === 'large_files') {
                 $large_file_count = count($stat);
-                $total_files = '<li>Large posts (skipped): we have found <strong>' .
-                    $large_file_count . '</strong> large item' . ($large_file_count === 1 ? '' : 's') .
+                $total_files = '<li>Skipped (too large) <strong>' .
+                    $large_file_count . '</strong>' .
                     '</li>';
 
                 if (!empty($stat)) {
@@ -361,7 +361,7 @@ class IndexSettings extends Page
                 $requests .= '<li>' .
                     ucwords(
                         str_replace(['total', '_'], ['', ' '], $key)
-                    ) . ': <strong>' . print_r($stat, true) .
+                    ) . ' <strong>' . print_r($stat, true) .
                     '</strong>' . $this->maybeBulkBodyFormat($key) .
                     '</li>';
             }

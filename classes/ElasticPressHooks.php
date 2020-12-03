@@ -32,6 +32,7 @@ class ElasticPressHooks
         add_filter('ep_elasticsearch_plugins', [$this, 'filterPlugins']);
         add_filter('ep_allowed_documents_ingest_mime_types', [$this, 'filterMimeTypes']);
         add_filter('ep_index_name', [$this, 'aliasName'], 10, 1);
+        add_filter('ep_index_default_per_page', [$this, 'indexPerPage'], 10, 1);
         add_filter('ep_config_mapping', [$this, 'mapCustomConfig'], 10, 1);
         add_filter('ep_config_mapping_request', [$this, 'mapRequest'], 10, 1);
     }
@@ -177,5 +178,10 @@ class ElasticPressHooks
         );
 
         return $mapping;
+    }
+
+    public function indexPerPage()
+    {
+        return 1;
     }
 }
