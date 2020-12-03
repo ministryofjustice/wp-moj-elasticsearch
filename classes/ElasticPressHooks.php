@@ -212,6 +212,7 @@ class ElasticPressHooks
     {
         $excluded = [
             'lbfw_likes',
+            'lhs_menu_on',
             'dw_comments_on',
             'oasis_current_revision',
             'comment_disabled_status',
@@ -237,6 +238,15 @@ class ElasticPressHooks
             'oasis_is_in_workflow',
             'moj_description'
         ];
+
+        global $wpdb;
+
+        $query = "SELECT DISTINCT meta_key from `wp_postmeta` where meta_key like '%link_type' OR meta_key like '%sections' OR meta_key like '%link_url' OR meta_key like '%links'";
+        $meta_keys = $wpdb->get_col($wpdb->prepare($query));
+
+        foreach ($meta_keys as $meta_key){
+            $excluded[] = $meta_key;
+        }
 
         return $excluded;
     }
