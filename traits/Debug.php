@@ -5,25 +5,39 @@ namespace MOJElasticSearch;
 trait Debug
 {
     /**
+     * Force return output in HTML format
+     * @var bool
+     */
+    public $html = false;
+
+    /**
      * Define a heading and pass through a variable to display output
      *
      * @param string $heading
      * @param mixed $var
+     * @param bool $force_html
      * @return string|null
      */
-    public function debug(string $heading, $var)
+    public function debug(string $heading, $var, $force_html = false)
     {
         $backtrace = debug_backtrace();
         $function = $backtrace[2]['function'];
         $caller = array_shift($backtrace);
 
+        if ($force_html) {
+            $this->html = true;
+        }
         $line = self::green("line " . $caller['line']);
         $function = self::blue($function . "()");
         $info = "Called in function " . $function . ", " . $line . "\nType: " . self::orange(gettype($var));
         $info .= "\n" . self::grey("-------") . "\n\n";
 
-        return self::pre($info . print_r(self::head($heading), true) .
+        $debug = self::pre($info . print_r(self::head($heading), true) .
             "\n\n" . self::code(print_r($var, true)) . "\n\n");
+
+        $this->html = false;
+
+        return $debug;
     }
 
     /**
@@ -34,7 +48,7 @@ trait Debug
      */
     private function green($text)
     {
-        if (defined('WP_CLI') && WP_CLI == true) {
+        if ($this->isCli()) {
             return "\033[0;32m" . $text . "\033[0m";
         }
 
@@ -49,7 +63,7 @@ trait Debug
      */
     private function head($text)
     {
-        if (defined('WP_CLI') && WP_CLI == true) {
+        if ($this->isCli()) {
             return "\033[1;37m" . $text . "\033[0m";
         }
 
@@ -64,7 +78,7 @@ trait Debug
      */
     private function blue($text)
     {
-        if (defined('WP_CLI') && WP_CLI == true) {
+        if ($this->isCli()) {
             return "\033[0;32m" . $text . "\033[0m";
         }
 
@@ -79,7 +93,7 @@ trait Debug
      */
     private function orange($text)
     {
-        if (defined('WP_CLI') && WP_CLI == true) {
+        if ($this->isCli()) {
             return "\033[0;33m" . $text . "\033[0m";
         }
 
@@ -94,7 +108,7 @@ trait Debug
      */
     private function grey($text)
     {
-        if (defined('WP_CLI') && WP_CLI == true) {
+        if ($this->isCli()) {
             return "\033[2m" . $text . "\033[0m";
         }
 
@@ -109,7 +123,7 @@ trait Debug
      */
     private function pre($text)
     {
-        if (defined('WP_CLI') && WP_CLI == true) {
+        if ($this->isCli()) {
             return "\n\033[1;2mD E B U G G I N G ...\033[0m\n\n" . $text;
         }
 
@@ -131,7 +145,7 @@ trait Debug
      */
     private function code($text)
     {
-        if (defined('WP_CLI') && WP_CLI == true) {
+        if ($this->isCli()) {
             return "\033[0;32m" . $text . "\033[0m\033[2m\n--------------------------------\033[0m";
         }
 
@@ -143,5 +157,20 @@ trait Debug
             'border-radius: 4px'
         ];
         return '<code style="' . implode(';', $styles) . '">' . $text . "</code>";
+    }
+
+    private function isCli()
+    {
+        return (!$this->html && (defined('WP_CLI') && WP_CLI == true));
+    }
+
+    public function displayHTML()
+    {
+        $this->html = true;
+    }
+
+    public function resetHTML()
+    {
+        $this->html = false;
     }
 }

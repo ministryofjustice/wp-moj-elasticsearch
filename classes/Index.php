@@ -201,7 +201,7 @@ class Index extends Page
         }
 
         // intranet.local[.rob].basilisk
-        $namespace = (function_exists('env') ? env('ES_ALIAS_NAMESPACE') : null);
+        $namespace = (function_exists('env') ? env('ES_INDEX_NAMESPACE') : null);
         $new_index = $this->alias->name . "." . ($namespace ? $namespace . "." : "") . $new_index;
 
         // first run
