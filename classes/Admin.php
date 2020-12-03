@@ -258,7 +258,7 @@ class Admin extends Options
     public function addCronIntervals($schedules): array
     {
         // moj_es_every_minute
-        $schedules[$this->cronInterval('every_minute')] = [
+        $schedules[$this->cronInterval('every_minute', true)] = [
             'interval' => 60,
             'display' => esc_html__('Every Minute')
         ];
@@ -266,9 +266,32 @@ class Admin extends Options
         return $schedules;
     }
 
-    public function cronInterval($interval)
+    /**
+     * Get the interval name in a namespaced format
+     * Use declare=true when defining the interval
+     *
+     * @param $interval
+     * @param bool $declare
+     * @return string
+     */
+    public function cronInterval($interval, $declare = false)
     {
-        return $this->prefix . '_' . $interval;
+        $schedule = $this->prefix . '_' . $interval;
+        if ($declare) {
+            return $schedule;
+        }
+
+        $availability = [];
+
+        $schedules = wp_get_schedules();
+
+        $availability[$schedule] = $schedules[$schedule] ?? false;
+        $availability[$interval] = $schedules[$interval] ?? false;
+
+        $availability = array_filter($availability);
+        reset($availability);
+
+        return (!empty($availability) ? key($availability) : $schedule);
     }
 
     /**
