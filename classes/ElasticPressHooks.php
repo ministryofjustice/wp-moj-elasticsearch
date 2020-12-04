@@ -34,11 +34,9 @@ class ElasticPressHooks
         add_filter('ep_allowed_documents_ingest_mime_types', [$this, 'filterMimeTypes']);
         add_filter('ep_index_name', [$this, 'aliasName'], 10, 1);
         add_filter('ep_config_mapping', [$this, 'mapCustomConfig'], 10, 1);
+        add_filter('ep_post_mapping', [$this, 'excludeMappingFields'], 10, 1);
         add_filter('ep_config_mapping_request', [$this, 'mapRequest'], 10, 1);
-        add_filter('ep_post_mapping', [$this, 'mapCustomPostConfig'], 10, 1);
-        add_filter('ep_prepare_meta_excluded_public_keys', [$this, 'mapMetaExcludePublicKeys'], 10, 2);
-        //add_filter( 'ep_prepare_meta_whitelist_key', [$this, 'metaWhitelist'], 10, 3);
-        //add_filter( 'ep_prepared_post_meta', [$this, 'preparedMeta'], 10, 2);
+        add_filter('ep_prepare_meta_excluded_public_keys', [$this, 'excludeMetaMappingFields'], 10, 2);
     }
 
     /**
@@ -185,11 +183,11 @@ class ElasticPressHooks
     }
 
     /**
-     * Add custom configurations to ElasticSearch mapping
+     * Exclude ElasticSearch mapping fields within properties
      * @param array
      * @return array
      */
-    public function mapCustomPostConfig(array $mapping): array
+    public function excludeMappingFields(array $mapping): array
     {
         // Check mapping exists in the expected data type
         if (!isset($mapping) || !is_array($mapping)) {
@@ -197,11 +195,24 @@ class ElasticPressHooks
             return $mapping;
         }
 
-        // remove
-        unset($mapping['mappings']['properties']['post_author']);
-        unset($mapping['mappings']['properties']['post_content_filtered']);
-        unset($mapping['mappings']['properties']['post_parent']);
-        unset($mapping['mappings']['properties']['guid']);
+        $excluded = [
+            'comment_count',
+            'comment_status',
+            'menu_order',
+            'ping_status',
+            'post_author',
+            'post_content_filtered',
+            'post_parent',
+            'post_status',
+            'post_modified',
+            'guid'
+        ];
+
+        if (is_array($excluded)) {
+            foreach ($excluded as $exclude) {
+                unset($mapping['mappings']['properties']["$exclude"]);
+            }
+        }
 
         return $mapping;
     }
@@ -211,7 +222,7 @@ class ElasticPressHooks
      * @param array
      * @return array
      */
-    public function mapMetaExcludePublicKeys($keys, $post): array
+    public function excludeMetaMappingFields($keys, $post): array
     {
         $excluded = [
             'lbfw_likes',
@@ -250,15 +261,14 @@ class ElasticPressHooks
        /* $query = "SELECT DISTINCT meta_key from `wp_postmeta`
         where meta_key like '%link_type' OR meta_key like '%sections' OR meta_key like '%link_url' OR meta_key like '%links'";*/
 
-
-        $query = "SELECT DISTINCT meta_key from `wp_postmeta` 
-        where meta_key like '%_html_content' 
-        OR meta_key like '%_links' 
-        OR meta_key like '%_sections' 
-        OR meta_key like '%_link_url' 
-        OR meta_key like '%_link_type' 
-        OR meta_key like 'content_section%' 
-        OR meta_key like 'built_in%' 
+        $query = "SELECT DISTINCT meta_key from `wp_postmeta`
+        where meta_key like '%_html_content'
+        OR meta_key like '%_links'
+        OR meta_key like '%_sections'
+        OR meta_key like '%_link_url'
+        OR meta_key like '%_link_type'
+        OR meta_key like 'content_section%'
+        OR meta_key like 'built_in%'
         OR meta_key like 'choice_%'";
 
         $meta_keys = $wpdb->get_col($wpdb->prepare($query));
@@ -268,13 +278,5 @@ class ElasticPressHooks
         }
 
         return $excluded;
-    }
-
-    public function preparedMeta ($prepared_meta, $post){
-
-        $prepared_meta = array();
-
-        return $prepared_meta;
-
     }
 }
