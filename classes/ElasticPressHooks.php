@@ -35,7 +35,7 @@ class ElasticPressHooks
         add_filter('ep_allowed_documents_ingest_mime_types', [$this, 'filterMimeTypes']);
         add_filter('ep_index_name', [$this, 'aliasName'], 10, 1);
         add_filter('ep_config_mapping', [$this, 'mapCustomConfig'], 10, 1);
-        add_filter('ep_post_mapping', [$this, 'excludeMappingFields'], 10, 1);
+        add_filter('ep_post_mapping', [$this, 'excludeMappingPostFields'], 10, 1);
         add_filter('ep_prepare_meta_excluded_public_keys', [$this, 'excludeMetaMappingFields'], 10, 2);
         add_filter('ep_config_mapping_request', [$this, 'mapRequest'], 10, 1);
     }
@@ -184,11 +184,11 @@ class ElasticPressHooks
     }
 
     /**
-     * Exclude ElasticSearch mapping fields within properties
+     * Exclude post mapping fields within properties
      * @param array
      * @return array
      */
-    public function excludeMappingFields(array $mapping): array
+    public function excludeMappingPostFields(array $mapping): array
     {
         // Check mapping exists in the expected data type
         if (!isset($mapping) || !is_array($mapping)) {
@@ -197,16 +197,11 @@ class ElasticPressHooks
         }
 
         $excluded = [
-            'comment_count',
-            'comment_status',
-            'menu_order',
-            'ping_status',
             'post_author',
             'post_content_filtered',
             'post_parent',
             'post_status',
-            'post_modified',
-            'guid'
+            'post_modified'
         ];
 
         foreach ($excluded as $exclude) {
