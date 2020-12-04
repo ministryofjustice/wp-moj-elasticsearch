@@ -12,6 +12,7 @@ namespace MOJElasticSearch;
 class ElasticPressHooks
 {
     use Debug;
+
     /**
      * Cache the index name
      * @var string
@@ -270,16 +271,15 @@ class ElasticPressHooks
         OR meta_key like 'choice_%'";
 
         // Store DB query in a transient to reduce SQL calls slowing indexing
-        if (false === ($meta_keys = get_transient( 'moj_es_exclude_meta_fields' ))) {
-
+        if (false === ($meta_keys = get_transient('moj_es_exclude_meta_fields'))) {
             $meta_keys = $wpdb->get_col($wpdb->prepare($query));
 
-            set_transient( 'moj_es_exclude_meta_fields', $meta_keys, MONTH_IN_SECONDS );
+            set_transient('moj_es_exclude_meta_fields', $meta_keys, MONTH_IN_SECONDS);
         }
 
         $meta_keys = maybe_unserialize($meta_keys);
 
-        foreach ($meta_keys as $meta_key){
+        foreach ($meta_keys as $meta_key) {
             $excluded[] = $meta_key;
         }
 
