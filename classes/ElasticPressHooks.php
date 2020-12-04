@@ -11,6 +11,7 @@ namespace MOJElasticSearch;
  */
 class ElasticPressHooks
 {
+    use Debug;
     /**
      * Cache the index name
      * @var string
@@ -36,6 +37,8 @@ class ElasticPressHooks
         add_filter('ep_config_mapping_request', [$this, 'mapRequest'], 10, 1);
         add_filter('ep_post_mapping', [$this, 'mapCustomPostConfig'], 10, 1);
         add_filter('ep_prepare_meta_excluded_public_keys', [$this, 'mapMetaExcludePublicKeys'], 10, 2);
+        //add_filter( 'ep_prepare_meta_whitelist_key', [$this, 'metaWhitelist'], 10, 3);
+        //add_filter( 'ep_prepared_post_meta', [$this, 'preparedMeta'], 10, 2);
     }
 
     /**
@@ -236,12 +239,28 @@ class ElasticPressHooks
             'enable_agency_about_us',
             'full_width_page_banner',
             'oasis_is_in_workflow',
-            'moj_description'
+            'moj_description',
+            'amazonS3_cache',
+            'amazonS3_info',
+            'guidance_tabs'
         ];
 
         global $wpdb;
 
-        $query = "SELECT DISTINCT meta_key from `wp_postmeta` where meta_key like '%link_type' OR meta_key like '%sections' OR meta_key like '%link_url' OR meta_key like '%links'";
+       /* $query = "SELECT DISTINCT meta_key from `wp_postmeta`
+        where meta_key like '%link_type' OR meta_key like '%sections' OR meta_key like '%link_url' OR meta_key like '%links'";*/
+
+
+        $query = "SELECT DISTINCT meta_key from `wp_postmeta` 
+        where meta_key like '%_html_content' 
+        OR meta_key like '%_links' 
+        OR meta_key like '%_sections' 
+        OR meta_key like '%_link_url' 
+        OR meta_key like '%_link_type' 
+        OR meta_key like 'content_section%' 
+        OR meta_key like 'built_in%' 
+        OR meta_key like 'choice_%'";
+
         $meta_keys = $wpdb->get_col($wpdb->prepare($query));
 
         foreach ($meta_keys as $meta_key){
@@ -249,5 +268,13 @@ class ElasticPressHooks
         }
 
         return $excluded;
+    }
+
+    public function preparedMeta ($prepared_meta, $post){
+
+        $prepared_meta = array();
+
+        return $prepared_meta;
+
     }
 }
