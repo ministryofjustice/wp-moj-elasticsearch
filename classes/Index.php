@@ -274,8 +274,6 @@ class Index extends Page
             );
         }
 
-        $stats['bulk_body_size'] = $this->admin->humanFileSize($body_stored_size);
-
         // payload maybe too big?
         if ($body_stored_size + $body_new_size > $this->settings->payload_max) {
             return false; // index individual file (normal)
@@ -283,6 +281,8 @@ class Index extends Page
 
         // add body to bodies
         $this->writeBodyToFile($body);
+
+        $stats['bulk_body_size'] = $this->admin->humanFileSize($body_stored_size + $body_new_size);
 
         $this->setStats($stats);
 
@@ -299,7 +299,7 @@ class Index extends Page
     }
 
     /**
-     * Append a string to the end of a file and return the new length, or false on failure
+     * Append a string to the end of a file, or false on failure
      * @param string $body
      * @return false|int
      */
@@ -307,10 +307,13 @@ class Index extends Page
     {
         $path = $this->importLocation() . 'moj-bulk-index-body.json';
         $handle = fopen($path, 'a');
-        fwrite($handle, trim($body) . "\n");
-        fclose($handle);
+        if ($handle !== false) {
+            fwrite($handle, trim($body) . "\n");
+            fclose($handle);
+            return mb_strlen(file_get_contents($path));
+        }
 
-        return mb_strlen(file_get_contents($path));
+        return false;
     }
 
     /**
@@ -336,7 +339,7 @@ class Index extends Page
 
         if (!is_wp_error($request)) {
             $stats = $this->getStats();
-            unlink($this->importLocation() . 'moj-bulk-index-body.json');
+            fclose(fopen($this->importLocation() . 'moj-bulk-index-body.json','w'));
             $stats['bulk_body_size'] = 0;
 
             $stats['total_bulk_requests'] = $stats['total_bulk_requests'] ?? 0;
