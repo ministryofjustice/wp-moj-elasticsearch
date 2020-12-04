@@ -106,11 +106,6 @@ class Index extends Page
             return $host . $this->alias->name . '/_search';
         }
 
-        // schedule a task to clean up the index once it has finished
-        if (!wp_next_scheduled('moj_es_cleanup_cron')) {
-            wp_schedule_event(time(), $this->admin->cronInterval('every_minute'), 'moj_es_cleanup_cron');
-        }
-
         $allow_methods = [
             'POST',
             'PUT'
@@ -137,6 +132,10 @@ class Index extends Page
         }
 
         if (isset($args['method']) && in_array($args['method'], $allow_methods)) {
+            // schedule a task to clean up the index once it has finished
+            if (!wp_next_scheduled('moj_es_cleanup_cron')) {
+                wp_schedule_event(time(), $this->admin->cronInterval('every_minute'), 'moj_es_cleanup_cron');
+            }
             $request = $this->index($request, $failures, $host, $path, $args);
         }
 

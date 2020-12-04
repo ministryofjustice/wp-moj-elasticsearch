@@ -52,7 +52,6 @@ class Options
         'total_stored_requests' => 0,
         'total_large_requests' => 0,
         'bulk_body_size' => 0,
-        'bulk_request_errors' => [],
         'large_files' => []
     ];
 
