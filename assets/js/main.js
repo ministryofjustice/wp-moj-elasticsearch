@@ -116,7 +116,8 @@ jQuery(function ($) {
         $('a.kill_index_pre_link').on('click', killBulkIndex)
 
         var polling_num = 0
-        var statInterval = null;
+        var statInterval = null
+        var subStatInterval = null;
         // self-executing function; get latest stats
         (function get_stats () {
             if (!statInterval) {
@@ -128,6 +129,10 @@ jQuery(function ($) {
                 if (json && !json.stats) {
                     $('#moj-es-indexing-stats').html(json)
                 }
+                clearInterval(subStatInterval)
+                subStatInterval = setInterval(function () {
+                    moj_increment_seconds('#index-time')
+                }, 1000)
 
                 polling_num++
                 if (polling_num > 15) {
@@ -152,6 +157,31 @@ jQuery(function ($) {
         $('input[name*="force_wp_query"]').on('click', function () {
             $('#force_wp_query_indicator').text(($(this).is(':checked') ? 'Yes, force WP Query while indexing.' : 'No.'))
         })
+    }
+
+    function moj_increment_seconds(element) {
+        var time = $(element).text(),
+            timeParts, hours, minutes, seconds
+
+        if (time) {
+            timeParts = time.split(' ')
+            hours = Number(timeParts[0].slice(0, -1))
+            minutes = Number(timeParts[1].slice(0, -1))
+            seconds = Number(timeParts[2].slice(0, -1))
+
+            // not past 59
+            seconds = String(seconds === 59 ? '00' : (seconds + 1));
+            minutes = seconds === '00' ? (minutes + 1) : minutes;
+            minutes = String(minutes === 59 ? '00' : minutes);
+            if (minutes === '00') {
+                hours = String((hours + 1));
+            }
+
+            seconds = (seconds.length === 1 ? '0' + seconds : seconds);
+            minutes = (minutes.length === 1 ? '0' + minutes : minutes);
+
+            $(element).text(hours + 'h ' + minutes + 'm ' + seconds + 's');
+        }
     }
 })
 
