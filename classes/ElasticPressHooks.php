@@ -34,9 +34,9 @@ class ElasticPressHooks
         add_filter('ep_allowed_documents_ingest_mime_types', [$this, 'filterMimeTypes']);
         add_filter('ep_index_name', [$this, 'aliasName'], 10, 1);
         add_filter('ep_config_mapping', [$this, 'mapCustomConfig'], 10, 1);
-        add_filter('ep_post_mapping', [$this, 'excludeMappingFields'], 10, 1);
-        add_filter('ep_config_mapping_request', [$this, 'mapRequest'], 10, 1);
+        add_filter('ep_config_mapping', [$this, 'excludeMappingFields'], 10, 1);
         add_filter('ep_prepare_meta_excluded_public_keys', [$this, 'excludeMetaMappingFields'], 10, 2);
+        add_filter('ep_config_mapping_request', [$this, 'mapRequest'], 10, 1);
     }
 
     /**
@@ -208,10 +208,8 @@ class ElasticPressHooks
             'guid'
         ];
 
-        if (is_array($excluded)) {
-            foreach ($excluded as $exclude) {
-                unset($mapping['mappings']['properties']["$exclude"]);
-            }
+        foreach ($excluded as $exclude) {
+            unset($mapping['mappings']['properties']["$exclude"]);
         }
 
         return $mapping;
