@@ -99,7 +99,7 @@ class Alias
             }
 
             // set active to false
-            update_option('_moj_es_bulk_index_active', false);
+            delete_option('_moj_es_bulk_index_active');
         }
 
         return $index_updated;
