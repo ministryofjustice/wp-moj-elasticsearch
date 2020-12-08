@@ -38,6 +38,7 @@ class ElasticPressHooks
         add_filter('ep_post_mapping', [$this, 'excludeMappingPostFields'], 10, 1);
         add_filter('ep_prepare_meta_excluded_public_keys', [$this, 'excludeMetaMappingFields'], 10, 2);
         add_filter('ep_config_mapping_request', [$this, 'mapRequest'], 10, 1);
+        add_filter('ep_post_sync_args_post_prepare_meta', [$this, 'removePostArgs'], 10, 2);
     }
 
     /**
@@ -184,31 +185,22 @@ class ElasticPressHooks
     }
 
     /**
-     * Exclude post mapping fields within properties
+     * Remove Post object meta that is not used
      * @param array
      * @return array
      */
-    public function excludeMappingPostFields(array $mapping): array
+    public function removePostArgs($post_args, $post_id ): array
     {
-        // Check mapping exists in the expected data type
-        if (!isset($mapping) || !is_array($mapping)) {
-            echo 'Error mapping issue, mapping does not appear to exist.';
-            return $mapping;
-        }
+        unset($post_args['post_author']);
+        unset($post_args['comment_count']);
+        unset($post_args['post_content_filtered']);
+        unset($post_args['post_parent']);
+        unset($post_args['comment_status']);
+        unset($post_args['ping_status']);
+        unset($post_args['menu_order']);
+        unset($post_args['guid']);
 
-        $excluded = [
-            'post_author',
-            'post_content_filtered',
-            'post_parent',
-            'post_status',
-            'post_modified'
-        ];
-
-        foreach ($excluded as $exclude) {
-            unset($mapping['mappings']['properties']["$exclude"]);
-        }
-
-        return $mapping;
+        return $post_args;
     }
 
     /**
