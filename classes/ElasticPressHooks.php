@@ -243,9 +243,6 @@ class ElasticPressHooks
 
         global $wpdb;
 
-       /* $query = "SELECT DISTINCT meta_key from `wp_postmeta`
-        where meta_key like '%link_type' OR meta_key like '%sections' OR meta_key like '%link_url' OR meta_key like '%links'";*/
-
         $query = "SELECT DISTINCT meta_key from `wp_postmeta`
         where meta_key like '%_html_content'
         OR meta_key like '%_links'
