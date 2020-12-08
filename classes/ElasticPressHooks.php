@@ -34,7 +34,6 @@ class ElasticPressHooks
         add_filter('ep_elasticsearch_plugins', [$this, 'filterPlugins']);
         add_filter('ep_allowed_documents_ingest_mime_types', [$this, 'filterMimeTypes']);
         add_filter('ep_index_name', [$this, 'aliasName'], 10, 1);
-        add_filter('ep_post_mapping', [$this, 'excludeMappingPostFields'], 10, 1);
         add_filter('ep_prepare_meta_excluded_public_keys', [$this, 'excludeMetaMappingFields'], 10, 2);
         add_filter('ep_config_mapping_request', [$this, 'mapRequest'], 10, 1);
         add_filter('ep_post_sync_args_post_prepare_meta', [$this, 'removePostArgs'], 10, 2);
