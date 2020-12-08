@@ -77,7 +77,7 @@ class Index extends Page
     public function hooks()
     {
         add_filter('ep_pre_request_url', [$this, 'request'], 11, 5);
-        add_action('moj_es_cron_hook', [$this, 'cleanUpIndexing']);
+        add_action('moj_es_cleanup_cron', [$this, 'cleanUpIndexing']);
         add_action('plugins_loaded', [$this, 'cleanUpIndexingCheck']);
         add_action('wp_ajax_stats_load', [$this, 'getStatsHTML']);
         add_filter('ep_index_name', [$this, 'indexNames'], 11, 1);
@@ -106,11 +106,6 @@ class Index extends Page
             return $host . $this->alias->name . '/_search';
         }
 
-        // schedule a task to clean up the index once it has finished
-        if (!wp_next_scheduled('moj_es_cron_hook')) {
-            wp_schedule_event(time(), 'one_minute', 'moj_es_cron_hook');
-        }
-
         $allow_methods = [
             'POST',
             'PUT'
@@ -137,6 +132,10 @@ class Index extends Page
         }
 
         if (isset($args['method']) && in_array($args['method'], $allow_methods)) {
+            // schedule a task to clean up the index once it has finished
+            if (!wp_next_scheduled('moj_es_cleanup_cron')) {
+                wp_schedule_event(time(), $this->admin->cronInterval('every_minute'), 'moj_es_cleanup_cron');
+            }
             $request = $this->index($request, $failures, $host, $path, $args);
         }
 
@@ -144,8 +143,8 @@ class Index extends Page
     }
 
     /**
-     * This method fires after the alias has been set in \ElasticPressHooks
-     * If the system is currently indexing, the alias is returned.
+     * This method fires after the alias has been set in \ElasticPressHooks - as a direct result of priority
+     * If the system is not indexing, the alias is returned.
      * Hooked into filter 'ep_index_name'
      *
      * @param string $alias_name
@@ -201,7 +200,7 @@ class Index extends Page
         }
 
         // intranet.local[.rob].basilisk
-        $namespace = (function_exists('env') ? env('ES_ALIAS_NAMESPACE') : null);
+        $namespace = (function_exists('env') ? env('ES_INDEX_NAMESPACE') : null);
         $new_index = $this->alias->name . "." . ($namespace ? $namespace . "." : "") . $new_index;
 
         // first run
@@ -274,8 +273,6 @@ class Index extends Page
             );
         }
 
-        $stats['bulk_body_size'] = $this->admin->humanFileSize($body_stored_size);
-
         // payload maybe too big?
         if ($body_stored_size + $body_new_size > $this->settings->payload_max) {
             return false; // index individual file (normal)
@@ -283,6 +280,8 @@ class Index extends Page
 
         // add body to bodies
         $this->writeBodyToFile($body);
+
+        $stats['bulk_body_size'] = $this->admin->humanFileSize($body_stored_size + $body_new_size);
 
         $this->setStats($stats);
 
@@ -299,7 +298,7 @@ class Index extends Page
     }
 
     /**
-     * Append a string to the end of a file and return the new length, or false on failure
+     * Append a string to the end of a file, or false on failure
      * @param string $body
      * @return false|int
      */
@@ -307,10 +306,13 @@ class Index extends Page
     {
         $path = $this->importLocation() . 'moj-bulk-index-body.json';
         $handle = fopen($path, 'a');
-        fwrite($handle, trim($body) . "\n");
-        fclose($handle);
+        if ($handle !== false) {
+            fwrite($handle, trim($body) . "\n");
+            fclose($handle);
+            return mb_strlen(file_get_contents($path));
+        }
 
-        return mb_strlen(file_get_contents($path));
+        return false;
     }
 
     /**
@@ -336,7 +338,7 @@ class Index extends Page
 
         if (!is_wp_error($request)) {
             $stats = $this->getStats();
-            unlink($this->importLocation() . 'moj-bulk-index-body.json');
+            fclose(fopen($this->importLocation() . 'moj-bulk-index-body.json','w'));
             $stats['bulk_body_size'] = 0;
 
             $stats['total_bulk_requests'] = $stats['total_bulk_requests'] ?? 0;
@@ -434,12 +436,12 @@ class Index extends Page
                 // Poll for completion
                 $this->alias->pollForCompletion();
 
+                // now we are done, stop the cron hook from running:
+                $timestamp = wp_next_scheduled('moj_es_cleanup_cron');
+                wp_unschedule_event($timestamp, 'moj_es_cleanup_cron');
+
                 // stop timer
                 $this->admin->indexTimer(false);
-
-                // now we are done, stop the cron hook from running:
-                $timestamp = wp_next_scheduled('moj_es_cron_hook');
-                wp_unschedule_event($timestamp, 'moj_es_cron_hook');
             }
         }
 

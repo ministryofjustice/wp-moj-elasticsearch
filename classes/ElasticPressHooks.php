@@ -35,6 +35,8 @@ class ElasticPressHooks
         add_filter('ep_allowed_documents_ingest_mime_types', [$this, 'filterMimeTypes']);
         add_filter('ep_index_name', [$this, 'aliasName'], 10, 1);
         add_filter('ep_prepare_meta_excluded_public_keys', [$this, 'excludeMetaMappingFields'], 10, 2);
+        add_filter('ep_index_default_per_page', [$this, 'indexPerPage'], 10, 1);
+        add_filter('ep_config_mapping', [$this, 'mapCustomConfig'], 10, 1);
         add_filter('ep_config_mapping_request', [$this, 'mapRequest'], 10, 1);
         add_filter('ep_post_sync_args_post_prepare_meta', [$this, 'removePostArgs'], 10, 2);
     }
@@ -266,5 +268,11 @@ class ElasticPressHooks
         }
 
         return $excluded;
+    }
+
+    public function indexPerPage()
+    {
+        return 1;
+
     }
 }

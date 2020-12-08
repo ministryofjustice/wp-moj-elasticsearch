@@ -29,8 +29,8 @@ use MOJElasticSearch\SignAmazonEsRequests;
 use MOJElasticSearch\Settings\IndexSettings;
 
 if (new Auth) {
-    $moj_es_alias = new Alias();
     $moj_es_admin = new Admin();
+    $moj_es_alias = new Alias($moj_es_admin);
     new ElasticPressHooks($moj_es_alias);
     $moj_es_settings = new IndexSettings($moj_es_admin);
     new Options;

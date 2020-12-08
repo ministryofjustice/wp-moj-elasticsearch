@@ -97,7 +97,8 @@ class IndexSettings extends Page
                 <div class="ldio-hokc2a6hk1r">
                 <div></div><div></div><div></div><div></div><div></div><div></div>
                 <div></div><div></div><div></div><div></div><div></div><div></div>
-                </div></div></div>
+                </div></div>
+              </div>
                 <div id="my-kill-content-id" style="display:none;">
                         <p>
                             You are about to kill a running indexing process. If you are unsure, exit
@@ -112,24 +113,26 @@ class IndexSettings extends Page
     public function indexStatus()
     {
         $last_created_index = get_option('_moj_es_index_name');
+        $end_date = get_option('_moj_es_index_timer_stop');
+        $end_date = ($end_date
+            ? '<br>Created on ' . date("F j, Y, g:i a", $end_date)
+            : ''
+        );
         ?>
 
-        <p><small><strong>Last completed index</strong></small><br>
+        <p><small><strong>Last completed index</strong>
+            <?= $end_date ?>
+            <br></small>
             <?= $last_created_index ?>
-            <br></p>
+            <br>
+        </p>
         <?php
     }
 
     public function currentStatus()
     {
         $current_alias = get_option('_moj_es_alias_name');
-        $last_created_index = get_option('_moj_es_index_name');
         $current_alias = $current_alias ? $current_alias : 'No alias found.';
-        $end_date = get_option('_moj_es_index_timer_stop');
-        $end_date = ($end_date
-            ? '<br>Created on ' . date("F j, Y, g:i a", $end_date)
-            : ''
-        );
         ?>
         <p><small><strong>Alias</strong></small><br><?= $current_alias ?><br></p>
         <p>-------------</p>
@@ -299,19 +302,20 @@ class IndexSettings extends Page
     public function indexStatisticsAjax()
     {
         $output = '';
-        if ($index_stats = $this->admin->isIndexing(true)) {
+        $index_stats = $this->admin->isIndexing(true);
+        $total_items = $index_stats[1] ?? 0;
+        if ($index_stats) {
             $total_sent = $index_stats[0] ?? 0;
-            $total_left = $index_stats[1] ?? 0;
-            $indexed_percent = ($total_sent > 0 ? round(($total_sent / $total_left) * 100) : 0);
+            $percent = (($total_sent > 0 && $total_items > 0) ? round(($total_sent / $total_items) * 100) : 0);
             $output .= '<div class="notice notice-warning moj-es-stats-index-notice">
                     <div class="progress">
-                        <span style="width: ' . $indexed_percent . '%">
+                        <span style="width: ' . $percent . '%">
                             <span></span>
                         </span>
                         <small>' . get_option('_moj_es_new_index_name') . '</small>
                     </div>
-                    <small>' . $indexed_percent . '% complete
-                        <span style="float:right">' . $this->admin->getIndexedTime() . '</span>
+                    <small>' . $percent . '% complete
+                        <span style="float:right" id="index-time">' . $this->admin->getIndexedTime() . '</span>
                     </small>
                     <p><strong>Indexing is currently active</strong>
                     <button name="moj_es_settings[index_kill]" value="1" class="button-primary kill_index_button"
@@ -324,8 +328,36 @@ class IndexSettings extends Page
                         Stop Indexing
                     </a></p>
                 </div>';
+
         } else {
-            $output .= '<small class="index_time">Last index took ' . $this->admin->getIndexedTime() . '</small>';
+            $output .= '<span class="index_time">Last index took ' . $this->admin->getIndexedTime() . '</span>';
+
+            $clean_up_status = wp_next_scheduled('moj_es_cleanup_cron');
+            $alias_switch_status = wp_next_scheduled('moj_es_poll_for_completion');
+            $index_active = get_option('_moj_es_bulk_index_active');
+            $clean_up_text = ($clean_up_status ? 'Cleaning up' : 'Cleaned');
+            $alias_switch_text = ($alias_switch_status ? 'Switching' : 'Waiting...');
+            $alias_switch_text = ($index_active == false ? 'Updated' : $alias_switch_text);
+
+
+            $output .= '<div class="index-complete-status-blocks">
+                            <div class="status-box clean-up
+                                ' . ($index_active == false ? ' complete' : '') . '
+                                ' . ($clean_up_status ? ' active' : '') . '
+                                ">
+                                <small><em>Index</em></small><br>
+                                <span>' . $clean_up_text . '</span>
+                                <div class="loader"></div>
+                            </div>
+                            <div class="status-box alias-switch
+                                ' . ($index_active == false ? ' complete' : '') . '
+                                ' . ($alias_switch_status ? ' active' : '') . '
+                                ">
+                                <small><em>Alias</em></small><br>
+                                <span>' . $alias_switch_text . '</span>
+                                <div class="loader"></div>
+                            </div>
+                        </div>';
         }
 
         $output .= '<ul id="inner-indexing-stats">';
@@ -338,8 +370,8 @@ class IndexSettings extends Page
 
             if ($key === 'large_files') {
                 $large_file_count = count($stat);
-                $total_files = '<li>Large posts (skipped): we have found <strong>' .
-                    $large_file_count . '</strong> large item' . ($large_file_count === 1 ? '' : 's') .
+                $total_files = '<li>Skipped (too large) <strong>' .
+                    $large_file_count . '</strong>' .
                     '</li>';
 
                 if (!empty($stat)) {
@@ -353,13 +385,25 @@ class IndexSettings extends Page
                     }
                     $total_files .= '</ol></div></li>';
                 }
+                continue;
+            }
+
+            if ($key === 'total_stored_requests') {
+                $requests .= '<li class="'.$key.'">' .
+                    ucwords(
+                        str_replace(['total', '_'], ['', ' '], $key)
+                    ) . ' / ' . $total_items . ' <strong>' . print_r($stat, true) .
+                    '</strong>' .
+                    '</li>';
+
+                continue;
             }
 
             if ($key !== 'large_files') {
-                $requests .= '<li>' .
+                $requests .= '<li class="'.$key.'">' .
                     ucwords(
                         str_replace(['total', '_'], ['', ' '], $key)
-                    ) . ': <strong>' . print_r($stat, true) .
+                    ) . ' <strong>' . print_r($stat, true) .
                     '</strong>' . $this->maybeBulkBodyFormat($key) .
                     '</li>';
             }
