@@ -3,8 +3,8 @@
  * Plugin name: WP MoJ ElasticSearch
  * Plugin URI:  https://github.com/ministryofjustice/wp-moj-elasticsearch
  * Description: MoJ WP plugin to extend the functionality of the ElasticPress plugin
- * Version:     2.2.0
- * Authors:     Damien Wilson, Adam Brown
+ * Version:     2.2.1
+ * Authors:     Damien Wilson, Adam Brown, Robert Lowe
  * Text domain: wp-moj-elasticsearch
  * Author URI:  https://ministryofjustice.github.io/justice-on-the-web
  * License:     MIT License
