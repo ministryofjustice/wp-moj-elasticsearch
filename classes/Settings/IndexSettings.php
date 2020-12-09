@@ -332,17 +332,19 @@ class IndexSettings extends Page
         } else {
             $output .= '<span class="index_time">Last index took ' . $this->admin->getIndexedTime() . '</span>';
 
-            $clean_up_status = wp_next_scheduled('moj_es_cleanup_cron');
-            $alias_switch_status = wp_next_scheduled('moj_es_poll_for_completion');
             $index_active = get_option('_moj_es_bulk_index_active');
-            $clean_up_text = ($clean_up_status ? 'Cleaning up' : 'Cleaned');
+            // clean up variables
+            $clean_up_status = wp_next_scheduled('moj_es_cleanup_cron');
+            $clean_up_text_completed = 'Cleaned';
+            $clean_up_text = ($clean_up_status ? 'Cleaning up' : $clean_up_text_completed);
+            // alias switch variables
+            $alias_switch_status = wp_next_scheduled('moj_es_poll_for_completion');
             $alias_switch_text = ($alias_switch_status ? 'Switching' : 'Waiting...');
             $alias_switch_text = ($index_active == false ? 'Updated' : $alias_switch_text);
 
-
             $output .= '<div class="index-complete-status-blocks">
                             <div class="status-box clean-up
-                                ' . ($index_active == false ? ' complete' : '') . '
+                                ' . ($clean_up_text == $clean_up_text_completed ? ' complete' : '') . '
                                 ' . ($clean_up_status ? ' active' : '') . '
                                 ">
                                 <small><em>Index</em></small><br>
