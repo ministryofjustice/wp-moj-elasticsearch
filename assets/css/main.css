@@ -187,9 +187,11 @@ p > small > strong,
     margin: 4px;
     padding: 12px 20px 17px;
 }
-.status-box.active {
+.status-box.active,
+.status-box.cancelled,
+.status-box.complete {
     border: none;
-    --borderWidth: 3px;
+    --borderWidth: 2px;
     background: #ffffff;
     position: relative;
     border-radius: 0;
@@ -197,11 +199,11 @@ p > small > strong,
 }
 .status-box.complete {
     border: 2px solid #46b450;
-    --borderWidth: 3px;
-    background: #ffffff;
-    position: relative;
-    border-radius: 0;
     color: #656565;
+}
+.status-box.cancelled {
+    border: 2px solid #b48346;
+    color: #ccc;
 }
 .status-box.active small,
 .status-box.complete small {

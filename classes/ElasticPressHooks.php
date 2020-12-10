@@ -186,10 +186,11 @@ class ElasticPressHooks
 
     /**
      * Remove Post object meta that is not used
-     * @param array
+     * @param $post_args
+     * @param $post_id
      * @return array
      */
-    public function removePostArgs($post_args, $post_id ): array
+    public function removePostArgs($post_args, $post_id): array
     {
         unset($post_args['post_author']);
         unset($post_args['comment_count']);
@@ -205,7 +206,8 @@ class ElasticPressHooks
 
     /**
      * Exclude ElasticSearch mapping meta
-     * @param array
+     * @param $keys
+     * @param $post
      * @return array
      */
     public function excludeMetaMappingFields($keys, $post): array
@@ -273,6 +275,5 @@ class ElasticPressHooks
     public function indexPerPage()
     {
         return 1;
-
     }
 }

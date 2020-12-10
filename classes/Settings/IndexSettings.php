@@ -212,12 +212,6 @@ class IndexSettings extends Page
                 I'm ready to rebuild the index... GO!
             </a>
         </div>
-        <?php
-
-        $url = get_option('EP_HOST') . '_cat/indices/';
-        $response = wp_safe_remote_get($url);
-
-        if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) == 200) : ?>
             <button name='<?= $this->optionName() ?>[index_button]' class="button-primary index_button" disabled="disabled">
                 Build new index
             </button>
@@ -226,9 +220,6 @@ class IndexSettings extends Page
                 Build new index
             </a>
             <p><?= $description ?></p>
-        <?php else : ?>
-            <p>Error connecting to Elasticsearch.</p>
-        <?php endif; ?>
         <?php
     }
 
@@ -304,6 +295,10 @@ class IndexSettings extends Page
         $output = '';
         $index_stats = $this->admin->isIndexing(true);
         $total_items = $index_stats[1] ?? 0;
+        // store the total items
+        if (! get_option('_moj_es_index_total_items', false) && $total_items > 0) {
+            update_option('_moj_es_index_total_items', $total_items);
+        }
         if ($index_stats) {
             $total_sent = $index_stats[0] ?? 0;
             $percent = (($total_sent > 0 && $total_items > 0) ? round(($total_sent / $total_items) * 100) : 0);
@@ -332,17 +327,25 @@ class IndexSettings extends Page
         } else {
             $output .= '<span class="index_time">Last index took ' . $this->admin->getIndexedTime() . '</span>';
 
-            $clean_up_status = wp_next_scheduled('moj_es_cleanup_cron');
-            $alias_switch_status = wp_next_scheduled('moj_es_poll_for_completion');
             $index_active = get_option('_moj_es_bulk_index_active');
-            $clean_up_text = ($clean_up_status ? 'Cleaning up' : 'Cleaned');
-            $alias_switch_text = ($alias_switch_status ? 'Switching' : 'Waiting...');
-            $alias_switch_text = ($index_active == false ? 'Updated' : $alias_switch_text);
+            // clean up variables
+            $clean_up_status = wp_next_scheduled('moj_es_cleanup_cron');
+            $clean_up_text_completed = 'Cleaned';
+            $clean_up_text = ($clean_up_status ? 'Cleaning up' : $clean_up_text_completed);
 
+            // alias switch variables
+            $alias_switch_text = 'Cancelled';
+            $alias_class = ' cancelled';
+            if ($this->admin->allItemsIndexed()) {
+                $alias_switch_status = wp_next_scheduled('moj_es_poll_for_completion');
+                $alias_switch_text = ($alias_switch_status ? 'Switching' : 'Waiting...');
+                $alias_switch_text = (!$index_active ? 'Updated' : $alias_switch_text);
+                $alias_class = ($alias_switch_status ? ' active' : '');
+            }
 
             $output .= '<div class="index-complete-status-blocks">
                             <div class="status-box clean-up
-                                ' . ($index_active == false ? ' complete' : '') . '
+                                ' . ($clean_up_text == $clean_up_text_completed ? ' complete' : '') . '
                                 ' . ($clean_up_status ? ' active' : '') . '
                                 ">
                                 <small><em>Index</em></small><br>
@@ -350,8 +353,7 @@ class IndexSettings extends Page
                                 <div class="loader"></div>
                             </div>
                             <div class="status-box alias-switch
-                                ' . ($index_active == false ? ' complete' : '') . '
-                                ' . ($alias_switch_status ? ' active' : '') . '
+                                ' . (!$index_active ? ' complete' : $alias_class) . '
                                 ">
                                 <small><em>Alias</em></small><br>
                                 <span>' . $alias_switch_text . '</span>

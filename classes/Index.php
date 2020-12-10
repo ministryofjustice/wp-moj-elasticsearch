@@ -81,7 +81,7 @@ class Index extends Page
         add_action('plugins_loaded', [$this, 'cleanUpIndexingCheck']);
         add_action('wp_ajax_stats_load', [$this, 'getStatsHTML']);
         add_filter('ep_index_name', [$this, 'indexNames'], 11, 1);
-        add_filter('ep_index_health_stats_indices', [$this, 'healthStatsIndex'], 10, 1);
+        //add_filter('ep_index_health_stats_indices', [$this, 'healthStatsIndex'], 10, 1);
     }
 
     /**
@@ -338,12 +338,11 @@ class Index extends Page
 
         if (!is_wp_error($request)) {
             $stats = $this->getStats();
-            fclose(fopen($this->importLocation() . 'moj-bulk-index-body.json','w'));
+            fclose(fopen($this->importLocation() . 'moj-bulk-index-body.json', 'w'));
             $stats['bulk_body_size'] = 0;
 
             $stats['total_bulk_requests'] = $stats['total_bulk_requests'] ?? 0;
             $stats['total_bulk_requests']++;
-            $stats['last_url'] = $query['url'];
             $this->setStats($stats); // next, save request params
         }
 
@@ -371,12 +370,13 @@ class Index extends Page
         $stats = $this->getStats();
         $stats['total_stored_requests'] = $stats['total_stored_requests'] ?? 0;
         $stats['total_stored_requests']++;
-        $stats['last_url'] = $query['url'];
 
         // remove body from overall payload for reporting
         unset($args['body']);
         $args['timeout'] = 120; // for all requests
+        $stats['last_url'] = $query['url'];
         $stats['last_args'] = $args;
+
         $this->setStats($stats);
 
         // mock response

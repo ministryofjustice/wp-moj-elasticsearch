@@ -420,4 +420,15 @@ class Admin extends Options
         $this->beginBackgroundIndex();
         return true;
     }
+
+    public function allItemsIndexed()
+    {
+        $total_items = get_option('_moj_es_index_total_items', false);
+        $total_sent = $this->options()['total_stored_requests'];
+        if ($total_items === $total_sent) {
+            return true;
+        }
+
+        return false;
+    }
 }
