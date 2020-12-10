@@ -212,12 +212,6 @@ class IndexSettings extends Page
                 I'm ready to rebuild the index... GO!
             </a>
         </div>
-        <?php
-
-        $url = get_option('EP_HOST') . '_cat/indices/';
-        $response = wp_safe_remote_get($url);
-
-        if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) == 200) : ?>
             <button name='<?= $this->optionName() ?>[index_button]' class="button-primary index_button" disabled="disabled">
                 Build new index
             </button>
@@ -226,9 +220,6 @@ class IndexSettings extends Page
                 Build new index
             </a>
             <p><?= $description ?></p>
-        <?php else : ?>
-            <p>Error connecting to Elasticsearch.</p>
-        <?php endif; ?>
         <?php
     }
 

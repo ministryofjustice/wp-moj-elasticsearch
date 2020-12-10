@@ -81,7 +81,7 @@ class Index extends Page
         add_action('plugins_loaded', [$this, 'cleanUpIndexingCheck']);
         add_action('wp_ajax_stats_load', [$this, 'getStatsHTML']);
         add_filter('ep_index_name', [$this, 'indexNames'], 11, 1);
-        add_filter('ep_index_health_stats_indices', [$this, 'healthStatsIndex'], 10, 1);
+        //add_filter('ep_index_health_stats_indices', [$this, 'healthStatsIndex'], 10, 1);
     }
 
     /**

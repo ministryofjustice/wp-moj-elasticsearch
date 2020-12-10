@@ -11,6 +11,11 @@
  *
  **/
 
+/**
+ * Disable ElasticPress dashboard sync
+ */
+define('EP_DASHBOARD_SYNC', false);
+
 // Load all our classes from PSR4 autoloader
 require(MOJ_ROOT_DIR . '/vendor/autoload.php');
 
