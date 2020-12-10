@@ -285,7 +285,7 @@ class Index extends Page
         $this->writeBodyToFile($body);
 
         $stats['bulk_body_size'] = $this->admin->humanFileSize($body_stored_size + $body_new_size);
-        $stats['item_size'] = $this->admin->humanFileSize($object_size);
+        $stats['item_size'] = $this->admin->humanFileSize($body_new_size);
 
         $this->setStats($stats);
 
