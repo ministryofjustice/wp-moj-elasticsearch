@@ -236,9 +236,11 @@ class Index extends Page
         $stats = $this->getStats();
 
         // check the total size - no more than max defined
-        if (mb_strlen($args['body'], 'UTF-8') <= $this->settings->payload_ep_max) {
+        $object_size = mb_strlen($args['body'], 'UTF-8');
+        if ($object_size <= $this->settings->payload_ep_max) {
             // allow ElasticPress to index normally
             $stats['total_large_requests']++;
+            $stats['item_size'] = $this->admin->humanFileSize($object_size);
             $this->setStats($stats);
             return $request;
         }
@@ -246,6 +248,7 @@ class Index extends Page
         // we have a large file
         $post_id = json_decode(trim(strstr($args['body'], "\n", true)));
         array_push($stats['large_files'], $post_id);
+        $stats['item_size'] = $this->admin->humanFileSize($object_size);
         $this->setStats($stats);
 
         add_filter('ep_intercept_remote_request', [$this, 'interceptTrue']);
@@ -282,6 +285,7 @@ class Index extends Page
         $this->writeBodyToFile($body);
 
         $stats['bulk_body_size'] = $this->admin->humanFileSize($body_stored_size + $body_new_size);
+        $stats['item_size'] = $this->admin->humanFileSize($body_new_size);
 
         $this->setStats($stats);
 
