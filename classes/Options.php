@@ -213,6 +213,12 @@ class Options
     public function importLocation()
     {
         $file_dir = get_temp_dir();
-        return $file_dir . basename(plugin_dir_path(dirname(__FILE__, 1))) . DIRECTORY_SEPARATOR;
+        $path = $file_dir . basename(plugin_dir_path(dirname(__FILE__, 1)));
+
+        if (!is_dir($path)) {
+            mkdir($path);
+        }
+
+        return trailingslashit($path);
     }
 }

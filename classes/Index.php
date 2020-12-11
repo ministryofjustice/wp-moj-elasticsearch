@@ -335,7 +335,15 @@ class Index extends Page
      */
     public function requestIntercept($request, $query, $args, $failures)
     {
-        $args['body'] = file_get_contents($this->importLocation() . 'moj-bulk-index-body.json');
+        $body = file_get_contents($this->importLocation() . 'moj-bulk-index-body.json');
+        if (!$body) {
+            wp_mail(
+                get_option('admin_email'),
+                '[FILE CONTENTS] Error',
+                $this->debug('File not accessible ', $this->importLocation() . 'moj-bulk-index-body.json')
+            );
+        }
+        $args['body'] = $body;
         $args['timeout'] = 120; // for all requests
 
         $request = wp_remote_request($query['url'], $args);
