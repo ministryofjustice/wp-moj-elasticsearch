@@ -72,10 +72,15 @@ class ElasticPressHooks
     public function filterMimeTypes($mime_types): array
     {
         // add the open document spreadsheet format
-        $mime_types['ods'] = 'application/vnd.oasis.opendocument.spreadsheet';
+        //$mime_types['ods'] = 'application/vnd.oasis.opendocument.spreadsheet';
 
+        $mime_types = array(
+            'pdf' => 'application/pdf',
+            'doc' => 'application/msword',
+            'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        );
         // remove a mime-type
-        unset($mime_types['ods']);
+        //unset($mime_types['ods']);
 
         return $mime_types;
     }
