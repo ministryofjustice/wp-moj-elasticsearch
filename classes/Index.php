@@ -312,7 +312,9 @@ class Index extends Page
         $handle = fopen($path, 'a');
         if ($handle !== false) {
             fwrite($handle, trim($body) . "\n");
-            fclose($handle);
+            while (is_resource($handle)) {
+                fclose($handle);
+            }
             return mb_strlen(file_get_contents($path));
         }
 
@@ -474,10 +476,7 @@ class Index extends Page
 
     public function getStatsHTML()
     {
-        $this->options();
-        $stats = $this->settings->indexStatisticsAjax();
-
-        echo json_encode($stats);
-        die();
+        echo json_encode($this->settings->indexStatisticsAjax());
+        exit;
     }
 }
