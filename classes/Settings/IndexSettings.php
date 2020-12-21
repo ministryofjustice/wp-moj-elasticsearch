@@ -78,7 +78,8 @@ class IndexSettings extends Page
             'build_index' => [$this, 'indexButton'],
             'refresh_rate' => [$this, 'pollingDelayField'],
             'force_wp_query' => [$this, 'forceWPQuery'],
-            'force_clean_up' => [$this, 'forceCleanUp']
+            'force_clean_up' => [$this, 'forceCleanUp'],
+            'buffer_total_requests' => [$this, 'bufferTotalRequests']
         ];
 
         // fill the sections
@@ -121,8 +122,8 @@ class IndexSettings extends Page
         ?>
 
         <p><small><strong>Last completed index</strong>
-            <?= $end_date ?>
-            <br></small>
+                <?= $end_date ?>
+                <br></small>
             <?= $last_created_index ?>
             <br>
         </p>
@@ -212,14 +213,14 @@ class IndexSettings extends Page
                 I'm ready to rebuild the index... GO!
             </a>
         </div>
-            <button name='<?= $this->optionName() ?>[index_button]' class="button-primary index_button" disabled="disabled">
-                Build new index
-            </button>
-            <a href="#TB_inline?&width=400&height=150&inlineId=my-content-id" class="button-primary thickbox"
-            title="Rebuild Elasticsearch Index">
-                Build new index
-            </a>
-            <p><?= $description ?></p>
+        <button name='<?= $this->optionName() ?>[index_button]' class="button-primary index_button" disabled="disabled">
+            Build new index
+        </button>
+        <a href="#TB_inline?&width=400&height=150&inlineId=my-content-id" class="button-primary thickbox"
+           title="Rebuild Elasticsearch Index">
+            Build new index
+        </a>
+        <p><?= $description ?></p>
         <?php
     }
 
@@ -290,13 +291,24 @@ class IndexSettings extends Page
         <?php
     }
 
+    public function bufferTotalRequests()
+    {
+        $option = $this->options();
+        $key = 'buffer_total_requests';
+        ?>
+        <input type="text" value="<?= $option[$key] ?? 20 ?>" name="<?= $this->optionName() ?>[<?= $key ?>]"/>
+        <p>We check the total number of indexed items against the total available indexables. We may need <br>to
+            add a buffer around the total stored requests to account for slight differences. Add that number here.</p>
+        <?php
+    }
+
     public function indexStatisticsAjax()
     {
         $output = '';
         $index_stats = $this->admin->isIndexing(true);
         $total_items = $index_stats[1] ?? 0;
         // store the total items
-        if (! get_option('_moj_es_index_total_items', false) && $total_items > 0) {
+        if (!get_option('_moj_es_index_total_items', false) && $total_items > 0) {
             update_option('_moj_es_index_total_items', $total_items);
         }
         if ($index_stats) {
@@ -327,36 +339,18 @@ class IndexSettings extends Page
         } else {
             $output .= '<span class="index_time">Last index took ' . $this->admin->getIndexedTime() . '</span>';
 
-            $index_active = get_option('_moj_es_bulk_index_active');
-            // clean up variables
-            $clean_up_status = wp_next_scheduled('moj_es_cleanup_cron');
-            $clean_up_text_completed = 'Cleaned';
-            $clean_up_text = ($clean_up_status ? 'Cleaning up' : $clean_up_text_completed);
-
-            // alias switch variables
-            $alias_switch_text = 'Cancelled';
-            $alias_class = ' cancelled';
-            if ($this->admin->allItemsIndexed()) {
-                $alias_switch_status = wp_next_scheduled('moj_es_poll_for_completion');
-                $alias_switch_text = ($alias_switch_status ? 'Switching' : 'Waiting...');
-                $alias_switch_text = (!$index_active ? 'Updated' : $alias_switch_text);
-                $alias_class = ($alias_switch_status ? ' active' : '');
-            }
+            $clean_up_progress = $this->feedbackCleanUpProcess();
+            $alias_switch_progress = $this->feedbackAliasSwitchProcess($clean_up_progress['state']);
 
             $output .= '<div class="index-complete-status-blocks">
-                            <div class="status-box clean-up
-                                ' . ($clean_up_text == $clean_up_text_completed ? ' complete' : '') . '
-                                ' . ($clean_up_status ? ' active' : '') . '
-                                ">
+                            <div class="status-box clean-up ' . $clean_up_progress['state'] . '">
                                 <small><em>Index</em></small><br>
-                                <span>' . $clean_up_text . '</span>
+                                <span>' . $clean_up_progress['text'] . '</span>
                                 <div class="loader"></div>
                             </div>
-                            <div class="status-box alias-switch
-                                ' . (!$index_active ? ' complete' : $alias_class) . '
-                                ">
+                            <div class="status-box alias-switch ' . $alias_switch_progress['state'] . '">
                                 <small><em>Alias</em></small><br>
-                                <span>' . $alias_switch_text . '</span>
+                                <span>' . $alias_switch_progress['text'] . '</span>
                                 <div class="loader"></div>
                             </div>
                         </div>';
@@ -391,7 +385,7 @@ class IndexSettings extends Page
             }
 
             if ($key === 'total_stored_requests') {
-                $requests .= '<li class="'.$key.'">' .
+                $requests .= '<li class="' . $key . '">' .
                     ucwords(
                         str_replace(['total', '_'], ['', ' '], $key)
                     ) . ' / ' . $total_items . ' <strong>' . print_r($stat, true) .
@@ -402,7 +396,7 @@ class IndexSettings extends Page
             }
 
             if ($key !== 'large_files') {
-                $requests .= '<li class="'.$key.'">' .
+                $requests .= '<li class="' . $key . '">' .
                     ucwords(
                         str_replace(['total', '_'], ['', ' '], $key)
                     ) . ' <strong>' . print_r($stat, true) .
@@ -412,5 +406,57 @@ class IndexSettings extends Page
         }
 
         return $output . $requests . $total_files . '</ul>';
+    }
+
+    public function feedbackCleanUpProcess()
+    {
+        $feedback = [
+            'text' => 'Cleaned',
+            'state' => ''
+        ];
+
+        if (wp_next_scheduled('moj_es_cleanup_cron')) {
+            $feedback['text'] = 'Cleaning up';
+            $feedback['state'] = 'active';
+        }
+
+        if ($feedback['text'] === 'Cleaned') {
+            $feedback['state'] = 'complete';
+        }
+
+        return $feedback;
+    }
+
+    public function feedbackAliasSwitchProcess($cleanup_state)
+    {
+        $feedback = [
+            'text' => 'Waiting',
+            'state' => ''
+        ];
+
+        // waiting
+        if ($cleanup_state === 'active') {
+            return $feedback;
+        }
+
+        // active
+        if (wp_next_scheduled('moj_es_poll_for_completion')) {
+            $feedback['text'] = 'Switching';
+            $feedback['state'] = 'active';
+        }
+
+        // complete
+        if (!get_option('_moj_es_bulk_index_active')) {
+            $feedback['text'] = 'Updated';
+            $feedback['state'] = 'complete';
+        }
+
+        // cancelled
+        if ($this->admin->options()['force_stop'] === true) {
+            $feedback['text'] = 'Interrupted';
+            $feedback['state'] = 'cancelled';
+        }
+
+        return $feedback;
     }
 }

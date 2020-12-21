@@ -113,15 +113,11 @@ class Alias
      */
     public function pollForCompletion()
     {
-        // let's check the index hasn't exited before it was complete
-        $all_indexed = $this->admin->allItemsIndexed();
-        $force_stopped = get_transient('moj_es_index_force_stopped');
-
-        if ($force_stopped) {
-            $this->admin->updateOption('force_stop', 'Stopped by user');
+        if (false !== get_transient('moj_es_index_force_stopped')) {
+            $this->admin->updateOption('force_stop', true);
         }
 
-        if ($all_indexed) {
+        if ($this->admin->maybeAllItemsIndexed()) {
             // schedule a task to complete the index process
             if (!wp_next_scheduled('moj_es_poll_for_completion')) {
                 wp_schedule_event(

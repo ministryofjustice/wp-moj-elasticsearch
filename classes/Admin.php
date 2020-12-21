@@ -384,9 +384,12 @@ class Admin extends Options
      */
     private function beginBackgroundIndex()
     {
+        // reset
         $this->clearStats();
         $this->indexTimer(true);
+        $this->updateOption('force_stop', false);
         update_option('_moj_es_bulk_index_active', true);
+
         exec("wp elasticpress index --setup --per-page=1 --allow-root > /dev/null 2>&1 & echo $!;");
 
         // now we have started, stop the cron hook from running if it is present:
@@ -421,14 +424,27 @@ class Admin extends Options
         return true;
     }
 
-    public function allItemsIndexed()
+    /**
+     * Run a loose check to determine if indexables were processed
+     * @return bool
+     */
+    public function maybeAllItemsIndexed()
     {
         $total_items = get_option('_moj_es_index_total_items', false);
-        $total_sent = $this->options()['total_stored_requests'];
-        if ($total_items === $total_sent) {
-            return true;
-        }
+        // cast to int, if needed
+        $total_items = (is_numeric($total_items) ? (int)$total_items : $total_items);
+        // get options
+        $opt = $this->options();
+        $buffer_total_requests = (int)$opt['buffer_total_requests'];
+        $total_items_loose_buffer = $total_items - $buffer_total_requests;
+        $total_items = $total_items + $buffer_total_requests;
 
-        return false;
+        $total_sent = (int)$opt['total_stored_requests']
+            + (int)$opt['total_bulk_requests']
+            + (int)$opt['total_large_requests'];
+
+        $totals = count($opt['large_files']) + $total_sent;
+
+        return (($total_items_loose_buffer <= $totals) && ($totals <= $total_items));
     }
 }
