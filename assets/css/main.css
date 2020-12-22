@@ -20,6 +20,10 @@ p > small > strong,
     color: #bf0e09
 }
 
+.moj-es .orange {
+    color: #ca630b
+}
+
 .moj-es small.sub-title {
     color: #aaaaaa
 }
@@ -37,6 +41,23 @@ p > small > strong,
     border-radius: 3px;
     max-width: 50rem;
     min-width: 35rem;
+}
+
+.moj-es .form-table td p {
+    margin-bottom: 7px;
+    max-width: 600px;
+}
+.moj-es .form-table td small {
+    font-weight: bold
+}
+
+.moj-es .feature-desc {
+    font-size: 0.8rem;
+    padding: 4px 14px;
+    margin-left: 2px;
+    margin-bottom: 20px;
+    border-left: 4px solid #38382D;
+    max-width: 600px;
 }
 
 #wpbody-content > div[id^="setting-error-"] {

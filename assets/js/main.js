@@ -147,15 +147,34 @@ jQuery(function ($) {
         $('#wpbody-content > div[id^="setting-error-"]').remove()
 
         $('input[name*="storage_is_db"]').on('click', function () {
-            $('#storage_indicator').text(($(this).is(':checked') ? 'Yes, store in DB.' : 'No, write to disc.'))
+            $('#storage_indicator').text(($(this).is(':checked') ? 'Sure, store stats in DB' : 'No, write to disc'))
         })
 
         $('input[name*="force_clean_up"]').on('click', function () {
-            $('#force_clean_up_indicator').text(($(this).is(':checked') ? 'Yes, clean up.' : 'No.'))
+            let checked = $(this).is(':checked'), text = 'No', colour = 'green';
+            if (checked) {
+                text = 'Yes, clean up'
+                colour = 'red';
+            }
+            $('#force_clean_up_indicator').removeClass().text(text).addClass(colour);
         })
 
         $('input[name*="force_wp_query"]').on('click', function () {
-            $('#force_wp_query_indicator').text(($(this).is(':checked') ? 'Yes, force WP Query while indexing.' : 'No.'))
+            let checked = $(this).is(':checked'), text = 'No', colour = 'green';
+            if (checked) {
+                text = 'Let\'s do it, force WP Query while indexing'
+                colour = 'red';
+            }
+            $('#force_wp_query_indicator').removeClass().text(text).addClass(colour);
+        })
+
+        $('input[name*="show_cleanup_messages"]').on('click', function () {
+            let checked = $(this).is(':checked'), text = 'No', colour = 'green';
+            if (checked) {
+                text = 'For sure! Display messaging during cleanup'
+                colour = 'orange';
+            }
+            $('#show_cleanup_messages_indicator').removeClass().text(text).addClass(colour);
         })
     }
 

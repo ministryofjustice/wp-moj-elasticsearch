@@ -2,6 +2,7 @@
 
 namespace MOJElasticSearch;
 
+use PHPMailer\PHPMailer\Exception;
 use WP_Error;
 use MOJElasticSearch\Settings\Page;
 use MOJElasticSearch\Settings\IndexSettings;
@@ -175,9 +176,6 @@ class Index extends Page
             return $this->index_name_new;
         }
 
-        echo $this->debug("CURRENT Index", $this->index_name_current);
-        echo $this->debug("NEW Index", $this->index_name_new);
-
         // index names
         $index_names = [
             'mythical' => [
@@ -233,23 +231,21 @@ class Index extends Page
             return $request;
         }
 
-        $stats = $this->getStats();
+        $stats = $this->admin->getStats();
 
         // check the total size - no more than max defined
         $object_size = mb_strlen($args['body'], 'UTF-8');
         if ($object_size <= $this->settings->payload_ep_max) {
             // allow ElasticPress to index normally
             $stats['total_large_requests']++;
-            $stats['item_size'] = $this->admin->humanFileSize($object_size);
-            $this->setStats($stats);
+            $this->admin->setStats($stats);
             return $request;
         }
 
         // we have a large file
         $post_id = json_decode(trim(strstr($args['body'], "\n", true)));
         array_push($stats['large_files'], $post_id);
-        $stats['item_size'] = $this->admin->humanFileSize($object_size);
-        $this->setStats($stats);
+        $this->admin->setStats($stats);
 
         add_filter('ep_intercept_remote_request', [$this, 'interceptTrue']);
         add_filter('ep_do_intercept_request', [$this, 'requestInterceptFalsy'], 11, 4);
@@ -266,13 +262,13 @@ class Index extends Page
      */
     public function sendBulk($body)
     {
-        $stats = $this->getStats();
+        $stats = $this->admin->getStats();
         $body_new_size = mb_strlen($body, 'UTF-8');
         $body_stored_size = 0;
 
-        if (file_exists($this->importLocation() . 'moj-bulk-index-body.json')) {
+        if (file_exists($this->admin->importLocation() . 'moj-bulk-index-body.json')) {
             $body_stored_size = mb_strlen(
-                file_get_contents($this->importLocation() . 'moj-bulk-index-body.json')
+                file_get_contents($this->admin->importLocation() . 'moj-bulk-index-body.json')
             );
         }
 
@@ -285,9 +281,8 @@ class Index extends Page
         $this->writeBodyToFile($body);
 
         $stats['bulk_body_size'] = $this->admin->humanFileSize($body_stored_size + $body_new_size);
-        $stats['item_size'] = $this->admin->humanFileSize($body_new_size);
 
-        $this->setStats($stats);
+        $this->admin->setStats($stats);
 
         add_filter('ep_intercept_remote_request', [$this, 'interceptTrue']);
 
@@ -308,7 +303,7 @@ class Index extends Page
      */
     public function writeBodyToFile(string $body)
     {
-        $path = $this->importLocation() . 'moj-bulk-index-body.json';
+        $path = $this->admin->importLocation() . 'moj-bulk-index-body.json';
         $handle = fopen($path, 'a');
         if ($handle !== false) {
             fwrite($handle, trim($body) . "\n");
@@ -330,37 +325,65 @@ class Index extends Page
      * @param $query
      * @param $args
      * @param $failures
+     * @param array $stats
      * @return array|WP_Error
      * @uses add_filter('ep_do_intercept_request');
      *
      * @uses add_filter('ep_intercept_remote_request', true);
      */
-    public function requestIntercept($request, $query, $args, $failures)
+    public function requestIntercept($request, $query, $args, $failures, &$message_stats = [])
     {
-        $body = file_get_contents($this->importLocation() . 'moj-bulk-index-body.json');
+        $stats = $this->admin->getStats();
+        $body = file_get_contents($this->admin->importLocation() . 'moj-bulk-index-body.json');
         if (!$body) {
-            wp_mail(
-                get_option('admin_email'),
-                '[FILE CONTENTS] Error',
-                $this->debug('File not accessible ', $this->importLocation() . 'moj-bulk-index-body.json')
-            );
+            if ($request === 'doing-cleanup') {
+                $this->admin->message('The index body could not be accessed', $message_stats);
+            }
         }
         $args['body'] = $body;
         $args['timeout'] = 120; // for all requests
 
-        $request = wp_remote_request($query['url'], $args);
-
-        if (!is_wp_error($request)) {
-            $stats = $this->getStats();
-            fclose(fopen($this->importLocation() . 'moj-bulk-index-body.json', 'w'));
-            $stats['bulk_body_size'] = 0;
-
-            $stats['total_bulk_requests'] = $stats['total_bulk_requests'] ?? 0;
-            $stats['total_bulk_requests']++;
-            $this->setStats($stats); // next, save request params
+        if ($request === 'doing-cleanup') {
+            $this->admin->message('Executing <small><pre>wp_remote_request(' . $query['url'] . ', ' . print_r($args) . ')</pre></small>', $message_stats);
         }
 
-        return $request;
+        $remote_request = wp_remote_request($query['url'], $args);
+        if (is_wp_error($remote_request)) {
+            if ($request === 'doing-cleanup') {
+                $this->admin->message('There was a transport error: ' . $remote_request->get_error_message(), $message_stats);
+                $this->admin->message('About to sleep for 5 and send again in the file; ' . basename(__FILE__), $message_stats);
+            }
+            sleep(5);
+            return $this->requestIntercept(null, $query, $args, null);
+        }
+
+        if ($request === 'doing-cleanup') {
+            $this->admin->message('Last index body has been sent!', $message_stats);
+        }
+
+        $handle = fopen($this->admin->importLocation() . 'moj-bulk-index-body.json', 'w');
+        while (is_resource($handle)) {
+            fclose($handle);
+        }
+
+        if ($request === 'doing-cleanup') {
+            $this->admin->message('Index body file has been emptied ready for next run.', $message_stats);
+        }
+
+        $stats['bulk_body_size'] = 0;
+        $stats['total_bulk_requests'] = $stats['total_bulk_requests'] ?? 0;
+        $stats['total_bulk_requests']++;
+        $this->admin->setStats($stats); // next, save request params
+
+        if ($request === 'doing-cleanup') {
+            $this->admin->message(
+                'bulk_body_size real value: ' . filesize($this->admin->importLocation() . 'moj-bulk-index-body.json'),
+                $message_stats
+            );
+            $this->admin->message('Returning to the cleanup method...', $message_stats);
+        }
+
+        return $remote_request;
     }
 
     /**
@@ -381,7 +404,7 @@ class Index extends Page
      */
     public function requestInterceptFalsy($request, $query, $args, $failures): array
     {
-        $stats = $this->getStats();
+        $stats = $this->admin->getStats();
         $stats['total_stored_requests'] = $stats['total_stored_requests'] ?? 0;
         $stats['total_stored_requests']++;
 
@@ -391,7 +414,7 @@ class Index extends Page
         $stats['last_url'] = $query['url'];
         $stats['last_args'] = $args;
 
-        $this->setStats($stats);
+        $this->admin->setStats($stats);
 
         // mock response
         return array(
@@ -425,41 +448,88 @@ class Index extends Page
             return false;
         }
 
-        $file_location = $this->importLocation() . 'moj-bulk-index-body.json';
+        $stats = $this->admin->getStats();
+        $this->admin->message('Is Indexing? ' . ($this->admin->isIndexing() ? 'YES' : 'No'), $stats);
+
+        if ($stats['cleanup_loops'] > 3) {
+            $this->admin->message('Cleanup is stuck. Quitting now to prevent continuous loops', $stats);
+            $this->endCleanup($stats);
+        }
+
+        $this->admin->message('Cleaning now...', $stats);
+
+        $file_location = $this->admin->importLocation() . 'moj-bulk-index-body.json';
+        $this->admin->message('Getting last index body from ' . $file_location, $stats);
 
         if (file_exists($file_location)) {
-            if (filesize($file_location) > 0) {
+            $this->admin->message('The index body file exists', $stats);
+            $file_size = filesize($file_location);
+            $this->admin->message('The file size is ' . $this->admin->humanFileSize($file_size), $stats);
+            if ($file_size > 0) {
                 // send last batch of posts to index
-                $stats = $this->getStats();
                 $url = $stats['last_url'] ?? null;
                 $args = $stats['last_args'] ?? null;
 
                 if (!$url || !$args) {
-                    $stats['cleanup_error'] = 'Cleanup cannot run. URL or ARGS not available in stats array';
-                    $this->setStats($stats);
-                    return false;
+                    $message = 'Cleanup cannot run. URL or ARGS not available in stats array.';
+                    $this->admin->message($message, $stats);
+                    trigger_error($message);
                 }
+
+                $this->admin->message('We have URL and ARGs. Moving to send the last request...', $stats);
 
                 // local function ensure object is array
                 $toArray = function ($x) use (&$toArray) {
                     return is_scalar($x) ? $x : array_map($toArray, (array)$x);
                 };
 
-                $this->requestIntercept(null, ['url' => $url], $toArray($args), null);
+                $response = $this->requestIntercept('doing-cleanup', ['url' => $url], $toArray($args), null, $stats);
+                if (is_wp_error($response)) {
+                    trigger_error($response->get_error_message(), E_USER_ERROR);
+                }
+
+                $this->admin->message('Done... attempting to begin polling for completion.', $stats);
 
                 // Poll for completion
-                $this->alias->pollForCompletion();
+                try {
+                    if (!$this->alias->pollForCompletion($stats)) {
+                        $this->admin->message(
+                            'Indexing was FORCE STOPPED by a user and will not switch alias indexes.',
+                            $stats
+                        );
+                    }
+                } catch (\Exception $e) {
+                    $this->admin->message('Could not initialise pollForCompletion. ' . $e->getMessage(), $stats);
+                }
 
-                // now we are done, stop the cron hook from running:
-                $timestamp = wp_next_scheduled('moj_es_cleanup_cron');
-                wp_unschedule_event($timestamp, 'moj_es_cleanup_cron');
-
-                // stop timer
-                $this->admin->indexTimer(false);
+                $this->endCleanup($stats);
+                return true;
             }
         }
 
+        $this->admin->message('Clean up process DID NOT complete successfully.', $stats);
+        $stats['cleanup_loops']++;
+        $this->admin->setStats($stats);
+
         return null;
+    }
+
+    public function endCleanup(&$stats)
+    {
+        // now we are done, stop the cron hook from running:
+        $timestamp = wp_next_scheduled('moj_es_cleanup_cron');
+        wp_unschedule_event($timestamp, 'moj_es_cleanup_cron');
+
+        if (false == wp_next_scheduled('moj_es_cleanup_cron')) {
+            $this->admin->message('Clean up CRON (moj_es_cleanup_cron) has been removed', $stats);
+        } else {
+            $this->admin->message('Clean up CRON (moj_es_cleanup_cron) is still active', $stats);
+        }
+
+        // stop timer
+        $this->admin->indexTimer(false);
+        $this->admin->message('The index timer has been stopped', $stats);
+        $this->admin->setStats($stats);
     }
 
     /**
@@ -467,9 +537,9 @@ class Index extends Page
      */
     public function cleanUpIndexingCheck()
     {
-        $force_clean_up = $this->options()['force_clean_up'] ?? null;
+        $force_clean_up = $this->admin->options()['force_clean_up'] ?? null;
         if ($force_clean_up) {
-            $this->updateOption('force_clean_up', null);
+            $this->admin->updateOption('force_clean_up', null);
             $this->cleanUpIndexing();
         }
     }

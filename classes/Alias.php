@@ -2,6 +2,8 @@
 
 namespace MOJElasticSearch;
 
+use PHPMailer\PHPMailer\Exception;
+
 class Alias
 {
     use Debug;
@@ -109,32 +111,33 @@ class Alias
      * Checks if the indexing process completed naturally and if so, schedules
      * a cron task to update our alias index routes
      *
+     * @param $stats
      * @return bool
+     * @throws \Exception
      */
-    public function pollForCompletion()
+    public function pollForCompletion(&$stats)
     {
+        // bail if force stopped
         if (false !== get_transient('moj_es_index_force_stopped')) {
-            $stats = $this->admin->getStats();
             $stats['force_stop'] = true;
-            $this->admin->setStats($stats);
+            wp_mail(get_option('admin_email'), 'Index shutdown by user', $this->debug('FORCED', 'BOOHOO'));
+            return false;
         }
 
-        if ($this->admin->maybeAllItemsIndexed()) {
+        // check confidence to switch index
+        if ($this->admin->maybeAllItemsIndexed($stats)) {
             // schedule a task to complete the index process
-            if (!wp_next_scheduled('moj_es_poll_for_completion')) {
+            if (false == wp_next_scheduled('moj_es_poll_for_completion')) {
                 wp_schedule_event(
                     time(),
                     $this->admin->cronInterval('every_minute'),
                     'moj_es_poll_for_completion'
                 );
             }
-
             return true;
         }
 
-        wp_mail(get_option('admin_email'), 'Shutdown by user', $this->debug('FORCED', 'BOOHOO'));
-
-        return null;
+        throw new \Exception('CRON to switch alias prevented. Confidence of completed index was low.');
     }
 
     public function deleteIndex()
