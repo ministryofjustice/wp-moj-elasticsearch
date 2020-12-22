@@ -81,6 +81,13 @@ p > small > strong,
     margin-left: 0px;
     display: inline-block;
 }
+.notice-warning.moj-es-stats-index-notice {
+    border-top-color: #ffb900;
+}
+
+.moj-es-stats-index-notice > small {
+    color: #6f6f6F;
+}
 
 .moj-es-stats-index-notice > small > span {
     float: right;
@@ -137,12 +144,13 @@ p > small > strong,
     overflow: hidden;
 }
 
-.progress > small {
+.moj-es .form-table .progress > small {
     position: absolute;
     width: 100%;
     top: 0;
     text-align: center;
     font-style: italic;
+    font-weight: lighter;
 }
 
 .progress > span:after, .animate > span > span {
