@@ -2,7 +2,7 @@
 
 namespace MOJElasticSearch;
 
-use PHPMailer\PHPMailer\Exception;
+use Exception;
 
 class Alias
 {
@@ -113,7 +113,7 @@ class Alias
      *
      * @param $stats
      * @return bool
-     * @throws \Exception
+     * @throws Exception
      */
     public function pollForCompletion(&$stats)
     {
@@ -137,7 +137,7 @@ class Alias
             return true;
         }
 
-        throw new \Exception('CRON to switch alias prevented. Confidence of completed index was low.');
+        throw new Exception('CRON to switch alias prevented. Confidence of completed index was low.');
     }
 
     public function deleteIndex()
