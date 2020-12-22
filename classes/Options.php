@@ -2,7 +2,7 @@
 
 namespace MOJElasticSearch;
 
-use PHPMailer\PHPMailer\Exception;
+use Exception;
 
 class Options
 {
