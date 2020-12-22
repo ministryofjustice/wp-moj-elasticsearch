@@ -2,6 +2,8 @@
 
 namespace MOJElasticSearch;
 
+use Exception;
+
 class Options
 {
     /**
@@ -53,6 +55,8 @@ class Options
         'total_large_requests' => 0,
         'bulk_body_size' => 0,
         'large_files' => [],
+        'messages' => [],
+        'cleanup_loops' => 0,
         'force_stop' => false
     ];
 
@@ -189,7 +193,9 @@ class Options
         // storage is file system
         $handle = fopen($this->importLocation() . 'moj-bulk-index-stats.json', 'w');
         fwrite($handle, json_encode($es_stats));
-        fclose($handle);
+        while (is_resource($handle)) {
+            fclose($handle);
+        }
 
         return true;
     }
@@ -214,16 +220,47 @@ class Options
     /**
      * Defines the import data location in the uploads directory.
      * @return string
+     * @throws Exception
      */
-    public function importLocation()
+    private function tmpPath()
     {
         $file_dir = get_temp_dir();
         $path = $file_dir . basename(plugin_dir_path(dirname(__FILE__, 1)));
 
         if (!is_dir($path)) {
-            mkdir($path);
+            if (!mkdir($path)) {
+                throw new Exception('importLocation directory could not be created in : ' . $path);
+            }
         }
 
         return trailingslashit($path);
+    }
+
+    /**
+     * Return th
+     * @return string
+     */
+    public function importLocation()
+    {
+        try {
+            return $this->tmpPath();
+        } catch (Exception $e) {
+            $text = 'Caught location exception: ' .  $e->getMessage();
+            trigger_error($text);
+            $this->message($text);
+        }
+    }
+
+    /**
+     * Log a message for display on the front end
+     * part of the stats api
+     * @param $text
+     * @param bool $stats
+     */
+    public function message($text, &$stats)
+    {
+        if ($this->options()['show_cleanup_messages'] ?? null) {
+            $stats['messages'][] = $text;
+        }
     }
 }

@@ -68,16 +68,16 @@ class IndexSettings extends Page
         // define fields
         $fields_index = [
             'latest_stats' => [$this, 'indexStatistics'],
+            'build_index' => [$this, 'indexButton'],
             'index_status' => [$this, 'indexStatus'],
             'alias_status' => [$this, 'currentStatus']
-
         ];
 
         $fields_index_management = [
             'storage_is_db' => [$this, 'storageIsDB'],
-            'build_index' => [$this, 'indexButton'],
             'refresh_rate' => [$this, 'pollingDelayField'],
             'force_wp_query' => [$this, 'forceWPQuery'],
+            'show_cleanup_messages' => [$this, 'showCleanupMessages'],
             'force_clean_up' => [$this, 'forceCleanUp'],
             'buffer_total_requests' => [$this, 'bufferTotalRequests']
         ];
@@ -199,7 +199,7 @@ class IndexSettings extends Page
     public function indexButton()
     {
         $description = __(
-            'You will be asked to confirm your decision. Please use this button with due consideration.',
+            'You will be asked to confirm your decision. Please build with due consideration.',
             $this->text_domain
         );
         ?>
@@ -214,13 +214,13 @@ class IndexSettings extends Page
             </a>
         </div>
         <button name='<?= $this->optionName() ?>[index_button]' class="button-primary index_button" disabled="disabled">
-            Build new index
+            Build New Index
         </button>
         <a href="#TB_inline?&width=400&height=150&inlineId=my-content-id" class="button-primary thickbox"
            title="Rebuild Elasticsearch Index">
-            Build new index
+            Build New Index
         </a>
-        <p><?= $description ?></p>
+        <p><small><?= $description ?></small></p>
         <?php
     }
 
@@ -229,13 +229,15 @@ class IndexSettings extends Page
         $option = $this->options();
         $storage_is_db = $option['storage_is_db'] ?? null;
         ?>
-        <p>Should we store index stats in the DB or write them to disc?</p>
         <input
             type="checkbox"
             value="1"
             name="<?= $this->optionName() ?>[storage_is_db]"
             <?php checked('1', $storage_is_db) ?>
-        /> <small id="storage_indicator"><?= ($this->stats_use_db ? 'Yes, store in DB' : 'No, write to disc') ?></small>
+        />
+        <small id="storage_indicator"
+               class="green"><?= ($this->stats_use_db ? 'Sure, store stats in DB' : 'No, write to disc') ?></small>
+        <p>Should we store index stats in the DB or write them to disc?</p>
         <?php
     }
 
@@ -243,14 +245,21 @@ class IndexSettings extends Page
     {
         $option = $this->options();
         $force_clean_up = $option['force_clean_up'] ?? null;
+        // prompt states
+        $prompt_text = 'No';
+        $prompt_colour = 'green';
+        if ($force_clean_up) {
+            $prompt_text = 'Yes, clean up';
+            $prompt_colour = 'red';
+        }
         ?>
-        <p>Do we need to clean the indexing process up? This might be needed if Bulk Body Size is greater than 0</p>
         <input
             type="checkbox"
             value="1"
             name="<?= $this->optionName() ?>[force_clean_up]"
             <?php checked('1', $force_clean_up) ?>
-        /> <small id="force_clean_up_indicator"><?= ($force_clean_up ? 'Yes, clean up' : 'No') ?></small>
+        /> <small id="force_clean_up_indicator" class="<?= $prompt_colour ?>"><?= $prompt_text ?></small>
+        <p>Do we need to clean the indexing process up? This might be needed if Bulk Body Size is greater than 0.</p>
         <?php
     }
 
@@ -258,22 +267,57 @@ class IndexSettings extends Page
     {
         $option = $this->options();
         $force_wp_query = $option['force_wp_query'] ?? null;
+        // prompt states
+        $prompt_text = 'No';
+        $prompt_colour = 'green';
+        if ($force_wp_query) {
+            $prompt_text = 'Yes, clean up';
+            $prompt_colour = 'red';
+        }
         ?>
-        <p>Has something gone wrong with Elasticsearch? Check this option to allow ElasticPress to use WP Query</p>
         <input
             type="checkbox"
             value="1"
             name="<?= $this->optionName() ?>[force_wp_query]"
             <?php checked('1', $force_wp_query) ?>
         /> <small
-        id="force_wp_query_indicator"><?= ($force_wp_query ? 'Yes, force WP Query while indexing' : 'No') ?></small>
+        id="force_wp_query_indicator" class="<?= $prompt_colour ?>"><?= $prompt_text ?></small>
 
-        <small style="font-size: 0.85rem"><br>
-            <br>Although very rare, we may need to override the default behaviour of querying by alias. <br>
-            Out of the box, we prevent ElasticPress from using WP Query on front end searches while<br>
-            indexing. Selecting this option will allow ElasticPress to fallback to WP Query.<br>
+        <p>Has something gone wrong with Elasticsearch? Check to allow ElasticPress to use WP Query.</p>
+        <p class="feature-desc">
+            Although very rare, we may need to override the default behaviour of querying by alias.
+            Out of the box, we prevent ElasticPress from using WP Query on front end searches while
+            indexing. Selecting this option will allow ElasticPress to fallback to WP Query.
             Useful in the event of catastrophic failure, such as an index being removed or emptied by accident.
-        </small>
+        </p>
+        <?php
+    }
+
+    public function showCleanupMessages()
+    {
+        $option = $this->options();
+        $key = 'show_cleanup_messages';
+        $value = $option[$key] ?? null;
+        // prompt states
+        $prompt_text = 'No';
+        $prompt_colour = 'green';
+        if ($value) {
+            $prompt_text = 'For sure! Display messaging during cleanup';
+            $prompt_colour = 'orange';
+        }
+        ?>
+        <input
+            type="checkbox"
+            value="1"
+            name="<?= $this->optionName() ?>[<?= $key ?>]"
+            <?php checked('1', $value) ?>
+        /> <small
+        id="show_cleanup_messages_indicator" class="<?= $prompt_colour ?>"><?= $prompt_text ?></small>
+        <p>Show verbose messaging during the clean up process.</p>
+        <p class="feature-desc">
+            This feature is especially useful to help visualise the steps of the clean up process. Messages will
+            only be displayed when the cleanup process kicks off.
+        </p>
         <?php
     }
 
@@ -297,8 +341,10 @@ class IndexSettings extends Page
         $key = 'buffer_total_requests';
         ?>
         <input type="text" value="<?= $option[$key] ?? 20 ?>" name="<?= $this->optionName() ?>[<?= $key ?>]"/>
-        <p>We check the total number of indexed items against the total available indexables. We may need <br>to
-            add a buffer around the total stored requests to account for slight differences. Add that number here.</p>
+        <p>This buffer is necessary and acts as a confidence rating. It helps decide whether an new index should be
+            activated and applied to the alias.</p>
+        <p class="feature-desc">We check the total number of indexed items against the total available indexables.
+            We add this buffer around the total stored requests to account for slight differences.</p>
         <?php
     }
 
@@ -359,10 +405,10 @@ class IndexSettings extends Page
         $output .= '<ul id="inner-indexing-stats">';
         $total_files = $requests = '';
 
-        $private_keys = [
-            'last_url', 'last_args', 'force_stop'
-        ];
-        foreach ($this->getStats() as $key => $stat) {
+        // define keys to omit from display
+        $private_keys = ['last_url', 'last_args', 'force_stop', 'messages', 'cleanup_loops'];
+        $stats = $this->admin->getStats();
+        foreach ($stats as $key => $stat) {
             if (in_array($key, $private_keys)) {
                 continue;
             }
@@ -408,7 +454,7 @@ class IndexSettings extends Page
             }
         }
 
-        return $output . $requests . $total_files . '</ul>';
+        return $output . $requests . $total_files . '</ul>' . $this->indexMessages($stats);
     }
 
     public function feedbackCleanUpProcess()
@@ -461,5 +507,25 @@ class IndexSettings extends Page
         }
 
         return $feedback;
+    }
+
+    /**
+     * @param $stats
+     * @return string
+     */
+    public function indexMessages($stats)
+    {
+        $index_messages = $stats['messages'] ?? [];
+        $output = '';
+
+        if (!empty($index_messages)) {
+            $output = '<ol>';
+            foreach ($index_messages as $index_message) {
+                $output .= '<li>' . $index_message . '</li>';
+            }
+            $output .= '</ol>';
+        }
+
+        return $output;
     }
 }

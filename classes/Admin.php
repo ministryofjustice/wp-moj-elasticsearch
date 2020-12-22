@@ -45,15 +45,15 @@ class Admin extends Options
      */
     public function hooks()
     {
+        // MoJ
+        add_action('moj_es_exec_index', [$this, 'scheduleIndexing']);
+        add_filter('cron_schedules', [$this, 'addCronIntervals']);
         // style set up
         add_action('admin_init', [$this, 'register']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue']);
         // ElasticPress
         add_action('ep_dashboard_start_index', [$this, 'clearStats']);
         add_action('ep_wp_cli_pre_index', [$this, 'clearStats']);
-        // MoJ
-        add_action('moj_es_exec_index', [$this, 'scheduleIndexing']);
-        add_filter('cron_schedules', [$this, 'addCronIntervals']);
     }
 
     /**
@@ -288,8 +288,12 @@ class Admin extends Options
         $availability[$schedule] = $schedules[$schedule] ?? false;
         $availability[$interval] = $schedules[$interval] ?? false;
 
-        $availability = array_filter($availability);
+        $availability = array_filter($availability); // remove all empty, null, false values
         reset($availability);
+
+        if (empty($availability)) {
+            trigger_error('Defining a CRON interval failed for ' . $interval . '. Using ' . $schedule . ' instead.');
+        }
 
         return (!empty($availability) ? key($availability) : $schedule);
     }
@@ -425,24 +429,41 @@ class Admin extends Options
 
     /**
      * Run a loose check to determine if indexables were processed
+     * @param $stats
      * @return bool
      */
-    public function maybeAllItemsIndexed()
+    public function maybeAllItemsIndexed(&$stats)
     {
         $total_items = get_option('_moj_es_index_total_items', false);
+        $this->message(
+            'Evaluate (raw): _moj_es_index_total_items =' . ($total_items ? $total_items : 'the value was FALSE'),
+            $stats
+        );
+
         // cast to int, if needed
         $total_items = (is_numeric($total_items) ? (int)$total_items : $total_items);
-        // get options
-        $opt = $this->options();
-        $buffer_total_requests = (int)$opt['buffer_total_requests'];
+        $this->message(
+            'Evaluate: _moj_es_index_total_items =' . ($total_items ? $total_items : 'the value was FALSE'),
+            $stats
+        );
+
+        // get total
+        $buffer_total_requests = (int)$this->options()['buffer_total_requests'] ?? 0;
+        // define a range
         $total_items_loose_buffer = $total_items - $buffer_total_requests;
         $total_items = $total_items + $buffer_total_requests;
 
-        $total_sent = (int)$opt['total_stored_requests']
-            + (int)$opt['total_bulk_requests']
-            + (int)$opt['total_large_requests'];
+        $stats = $this->getStats();
+        $total_sent = (int)$stats['total_stored_requests']
+            + (int)$stats['total_bulk_requests']
+            + (int)$stats['total_large_requests'];
 
-        $totals = count($opt['large_files']) + $total_sent;
+        $totals = count($stats['large_files'] ?? []) + $total_sent;
+        $this->message('Total items sent = ' . $totals, $stats);
+        $this->message(
+            'Evaluate calculation: (' . $total_items_loose_buffer . ' <= ' . $totals . ') && (' . $totals . ' <= ' . $total_items . ')',
+            $stats
+        );
 
         return (($total_items_loose_buffer <= $totals) && ($totals <= $total_items));
     }
