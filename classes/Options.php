@@ -52,7 +52,8 @@ class Options
         'total_stored_requests' => 0,
         'total_large_requests' => 0,
         'bulk_body_size' => 0,
-        'large_files' => []
+        'large_files' => [],
+        'force_stop' => false
     ];
 
     public function __construct()
@@ -203,7 +204,11 @@ class Options
             return update_option('_moj_bulk_index_stats', $this->stats_default);
         }
 
-        return unlink($this->importLocation() . 'moj-bulk-index-stats.json');
+        if (file_exists($this->importLocation() . 'moj-bulk-index-stats.json')) {
+            unlink($this->importLocation() . 'moj-bulk-index-stats.json');
+        }
+
+        return true;
     }
 
     /**

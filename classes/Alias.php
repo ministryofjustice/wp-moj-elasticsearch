@@ -114,7 +114,9 @@ class Alias
     public function pollForCompletion()
     {
         if (false !== get_transient('moj_es_index_force_stopped')) {
-            $this->admin->updateOption('force_stop', true);
+            $stats = $this->admin->getStats();
+            $stats['force_stop'] = true;
+            $this->admin->setStats($stats);
         }
 
         if ($this->admin->maybeAllItemsIndexed()) {

@@ -387,7 +387,6 @@ class Admin extends Options
         // reset
         $this->clearStats();
         $this->indexTimer(true);
-        $this->updateOption('force_stop', false);
         update_option('_moj_es_bulk_index_active', true);
 
         exec("wp elasticpress index --setup --per-page=1 --allow-root > /dev/null 2>&1 & echo $!;");

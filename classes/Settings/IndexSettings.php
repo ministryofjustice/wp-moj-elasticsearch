@@ -359,8 +359,11 @@ class IndexSettings extends Page
         $output .= '<ul id="inner-indexing-stats">';
         $total_files = $requests = '';
 
+        $private_keys = [
+            'last_url', 'last_args', 'force_stop'
+        ];
         foreach ($this->getStats() as $key => $stat) {
-            if (strpos($key, 'last_') > -1) {
+            if (in_array($key, $private_keys)) {
                 continue;
             }
 
@@ -452,7 +455,7 @@ class IndexSettings extends Page
         }
 
         // cancelled
-        if ($this->admin->options()['force_stop'] === true) {
+        if (true === ($this->admin->getStats()['force_stop'] ?? false)) {
             $feedback['text'] = 'Interrupted';
             $feedback['state'] = 'cancelled';
         }

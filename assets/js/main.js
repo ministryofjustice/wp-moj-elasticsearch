@@ -124,7 +124,7 @@ jQuery(function ($) {
                 statInterval = setInterval(get_stats, mojESPollingTime * 1000)
             }
 
-            $.post(ajaxurl + '?uuid=' + uuidv4(), { 'action': 'stats_load' }, function (response) {
+            $.post(ajaxurl, { 'action': 'stats_load' }, function (response) {
                 var json = $.parseJSON(response)
                 if (json && !json.stats) {
                     $('#moj-es-indexing-stats').html(json)
