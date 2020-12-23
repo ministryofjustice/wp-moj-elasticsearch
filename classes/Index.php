@@ -502,12 +502,7 @@ class Index extends Page
 
                 // Poll for completion
                 try {
-                    if (!$this->alias->pollForCompletion($stats)) {
-                        $this->admin->message(
-                            '',
-                            $stats
-                        );
-                    }
+                    $this->alias->pollForCompletion($stats);
                 } catch (\Exception $e) {
                     $this->admin->message(
                         'Exception: Could not initialise pollForCompletion. ' . $e->getMessage(),
