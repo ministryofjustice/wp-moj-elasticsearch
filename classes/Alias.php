@@ -46,9 +46,8 @@ class Alias
     public function update()
     {
         $index_updated = false;
-        $bulk_is_active = get_option('_moj_es_bulk_index_active', false);
 
-        if ($bulk_is_active && ($this->isESQueueEmpty() && wp_next_scheduled('moj_es_poll_for_completion'))) {
+        if ($this->isESQueueEmpty() && wp_next_scheduled('moj_es_poll_for_completion')) {
             // prevent cron hook from running:
             $timestamp = wp_next_scheduled('moj_es_poll_for_completion');
             wp_unschedule_event($timestamp, 'moj_es_poll_for_completion');
@@ -91,7 +90,7 @@ class Alias
             update_option('_moj_es_new_index_name', null);
 
             if (is_wp_error($response)) {
-                trigger_error('MoJ ES  W A R N I N G: ' . $response->get_error_message() . '.');
+                trigger_error('[MOJ ES WARNING] ' . $response->get_error_message() . '.');
                 return false;
             }
 
@@ -109,7 +108,9 @@ class Alias
 
     /**
      * Checks if the indexing process completed naturally and if so, schedules
-     * a cron task to update our alias index routes
+     * a cron task to update the alias index routes.
+     *
+     * Stats are passed purely for tracking execution.
      *
      * @param $stats
      * @return bool
@@ -121,7 +122,12 @@ class Alias
         if (false !== get_transient('moj_es_index_force_stopped')) {
             $stats['force_stop'] = true;
             wp_mail(get_option('admin_email'), 'Index shutdown by user', $this->debug('FORCED', 'BOOHOO'));
-            return false;
+            throw new Exception('Indexing was FORCE STOPPED. Switching alias indexes was prevented.');
+        }
+
+        // bail if a WordPress user sent an update
+        if (false == get_option('_moj_es_bulk_index_active')) {
+            throw new Exception('No need to update the alias. The request is coming from WordPress.');
         }
 
         // check confidence to switch index
@@ -133,11 +139,11 @@ class Alias
                     $this->admin->cronInterval('every_minute'),
                     'moj_es_poll_for_completion'
                 );
+                return true;
             }
-            return true;
+            throw new Exception('Poll for completion schedule was already set. The task to update the alias is running.');
         }
-
-        throw new Exception('CRON to switch alias prevented. Confidence of completed index was low.');
+        throw new Exception('CRON to switch alias prevented. Confidence of completed index was too low.');
     }
 
     public function deleteIndex()
@@ -158,12 +164,12 @@ class Alias
     {
         $url = get_option('EP_HOST') . '_cat/thread_pool/write?v&h=active,queue&format=json';
         $response = wp_safe_remote_get($url);
-        $json = json_decode(wp_remote_retrieve_body($response));
+        $process = json_decode(wp_remote_retrieve_body($response));
 
-        if (is_array($json)) {
-            $json = $json[0];
-            if (property_exists($json, 'queue')) {
-                if ($json->active === "0" && $json->queue === "0") {
+        if (is_array($process)) {
+            $process = $process[0];
+            if (property_exists($process, 'queue')) {
+                if ($process->active === "0" && $process->queue === "0") {
                     return true;
                 }
             }
@@ -179,7 +185,7 @@ class Alias
         wp_schedule_single_event($sixty_days, 'moj_es_delete_index');
         wp_mail(
             get_option('admin_email'),
-            '[MOJ ES W A R N I N G] Index will die in 60 days',
+            '[MOJ ES WARNING] Unused index will die in 60 days',
             $this->debug(
                 'INDEX HAS BEEN SCHEDULED FOR DELETE',
                 'Nb. ' . $index . ' to be removed on ' . date("F j, Y, g:i a", $sixty_days) .

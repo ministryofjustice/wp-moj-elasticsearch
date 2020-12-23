@@ -78,7 +78,7 @@ class IndexSettings extends Page
             'refresh_rate' => [$this, 'pollingDelayField'],
             'force_wp_query' => [$this, 'forceWPQuery'],
             'show_cleanup_messages' => [$this, 'showCleanupMessages'],
-            'force_clean_up' => [$this, 'forceCleanUp'],
+            'force_cleanup' => [$this, 'forceCleanup'],
             'buffer_total_requests' => [$this, 'bufferTotalRequests']
         ];
 
@@ -241,14 +241,14 @@ class IndexSettings extends Page
         <?php
     }
 
-    public function forceCleanUp()
+    public function forceCleanup()
     {
         $option = $this->options();
-        $force_clean_up = $option['force_clean_up'] ?? null;
+        $force_cleanup = $option['force_cleanup'] ?? null;
         // prompt states
         $prompt_text = 'No';
         $prompt_colour = 'green';
-        if ($force_clean_up) {
+        if ($force_cleanup) {
             $prompt_text = 'Yes, clean up';
             $prompt_colour = 'red';
         }
@@ -256,9 +256,9 @@ class IndexSettings extends Page
         <input
             type="checkbox"
             value="1"
-            name="<?= $this->optionName() ?>[force_clean_up]"
-            <?php checked('1', $force_clean_up) ?>
-        /> <small id="force_clean_up_indicator" class="<?= $prompt_colour ?>"><?= $prompt_text ?></small>
+            name="<?= $this->optionName() ?>[force_cleanup]"
+            <?php checked('1', $force_cleanup) ?>
+        /> <small id="force_cleanup_indicator" class="<?= $prompt_colour ?>"><?= $prompt_text ?></small>
         <p>Do we need to clean the indexing process up? This might be needed if Bulk Body Size is greater than 0.</p>
         <?php
     }
