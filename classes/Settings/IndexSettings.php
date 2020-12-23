@@ -434,10 +434,11 @@ class IndexSettings extends Page
             }
 
             if ($key === 'total_stored_requests') {
+                $max_requests_avail = ($total_items > 0 ? ' / ' . $total_items : '');
                 $requests .= '<li class="' . $key . '">' .
                     ucwords(
                         str_replace(['total', '_'], ['', ' '], $key)
-                    ) . ' / ' . $total_items . ' <strong>' . print_r($stat, true) .
+                    ) . $max_requests_avail . ' <strong>' . print_r($stat, true) .
                     '</strong>' .
                     '</li>';
 

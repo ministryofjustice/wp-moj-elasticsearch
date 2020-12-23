@@ -448,15 +448,18 @@ class Index extends Page
             return false;
         }
 
+        // bail if process has started
+        if (get_option('moj_es_cleanup_process_running')) {
+            return false;
+        }
+
         $stats = $this->admin->getStats();
         $this->admin->message('Is Indexing? ' . ($this->admin->isIndexing() ? 'YES' : 'No'), $stats);
 
         if ($stats['cleanup_loops'] > 3) {
-            $this->admin->message('Cleanup is stuck. Quitting now to prevent continuous loops', $stats);
+            $this->admin->message('Cleanup is stuck. Quitting now to prevent continuous loops...', $stats);
             $this->endCleanup($stats);
         }
-
-        $this->admin->message('Cleaning now...', $stats);
 
         $file_location = $this->admin->importLocation() . 'moj-bulk-index-body.json';
         $this->admin->message('Getting last index body from ' . $file_location, $stats);
@@ -466,6 +469,10 @@ class Index extends Page
             $file_size = filesize($file_location);
             $this->admin->message('The file size is ' . $this->admin->humanFileSize($file_size), $stats);
             if ($file_size > 0) {
+                // begin cleaning
+                $cleanup_start = time();
+                update_option('moj_es_cleanup_process_running', $cleanup_start);
+                $this->admin->message('Checks have PASSED. Cleaning started at ' . date('H:i:s (d:m:y)', $cleanup_start), $stats);
                 // send last batch of posts to index
                 $url = $stats['last_url'] ?? null;
                 $args = $stats['last_args'] ?? null;
@@ -488,13 +495,16 @@ class Index extends Page
                     trigger_error($response->get_error_message(), E_USER_ERROR);
                 }
 
-                $this->admin->message('Done... attempting to begin polling for completion.', $stats);
+                $this->admin->message(
+                    'Done, the request was sent successfully to ES... attempting to begin polling for completion.',
+                    $stats
+                );
 
                 // Poll for completion
                 try {
                     if (!$this->alias->pollForCompletion($stats)) {
                         $this->admin->message(
-                            'Indexing was FORCE STOPPED by a user and will not switch alias indexes.',
+                            'Indexing was FORCE STOPPED. Switching alias indexes was prevented.',
                             $stats
                         );
                     }
@@ -525,6 +535,10 @@ class Index extends Page
         } else {
             $this->admin->message('Clean up CRON (moj_es_cleanup_cron) is still active', $stats);
         }
+
+        // quitting the process
+        delete_option('moj_es_cleanup_process_running');
+        $this->admin->message('Removed the CRON process lock option: moj_es_cleanup_process_running', $stats);
 
         // stop timer
         $this->admin->indexTimer(false);
