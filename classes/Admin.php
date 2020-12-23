@@ -108,6 +108,19 @@ class Admin extends Options
             return $this->optionBulkIndex($options);
         }
 
+        // catch Bulk index action
+        if (isset($options['force_cleanup'])) {
+            if ($this->isIndexing()) {
+                self::settingNotice(
+                    'Cleanup cannot occur while an index job is running.',
+                    'force-cleanup-warning',
+                    'warning'
+                );
+                unset($options['force_cleanup']);
+                return $options;
+            }
+        }
+
         // catch Bulk index action ~ kill
         if (isset($options['index_kill'])) {
             $process_id = exec('pgrep -u www-data php$');
@@ -465,6 +478,10 @@ class Admin extends Options
             $stats
         );
 
-        return (($total_items_loose_buffer <= $totals) && ($totals <= $total_items));
+        $result = (($total_items_loose_buffer <= $totals) && ($totals <= $total_items));
+
+        $this->message('Indexing ' . ($result ? 'completed successfully' : 'DID NOT complete'), $stats);
+
+        return $result;
     }
 }

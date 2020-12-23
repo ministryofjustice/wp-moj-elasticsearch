@@ -150,13 +150,13 @@ jQuery(function ($) {
             $('#storage_indicator').text(($(this).is(':checked') ? 'Sure, store stats in DB' : 'No, write to disc'))
         })
 
-        $('input[name*="force_clean_up"]').on('click', function () {
+        $('input[name*="force_cleanup"]').on('click', function () {
             let checked = $(this).is(':checked'), text = 'No', colour = 'green';
             if (checked) {
                 text = 'Yes, clean up'
                 colour = 'red';
             }
-            $('#force_clean_up_indicator').removeClass().text(text).addClass(colour);
+            $('#force_cleanup_indicator').removeClass().text(text).addClass(colour);
         })
 
         $('input[name*="force_wp_query"]').on('click', function () {

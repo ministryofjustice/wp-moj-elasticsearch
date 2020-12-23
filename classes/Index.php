@@ -79,7 +79,7 @@ class Index extends Page
     {
         add_filter('ep_pre_request_url', [$this, 'request'], 11, 5);
         add_action('moj_es_cleanup_cron', [$this, 'cleanUpIndexing']);
-        add_action('plugins_loaded', [$this, 'cleanUpIndexingCheck']);
+        add_action('plugins_loaded', [$this, 'cleanupIndexingCheck']);
         add_action('wp_ajax_stats_load', [$this, 'getStatsHTML']);
         add_filter('ep_index_name', [$this, 'indexNames'], 11, 1);
         //add_filter('ep_index_health_stats_indices', [$this, 'healthStatsIndex'], 10, 1);
@@ -504,12 +504,15 @@ class Index extends Page
                 try {
                     if (!$this->alias->pollForCompletion($stats)) {
                         $this->admin->message(
-                            'Indexing was FORCE STOPPED. Switching alias indexes was prevented.',
+                            '',
                             $stats
                         );
                     }
                 } catch (\Exception $e) {
-                    $this->admin->message('Could not initialise pollForCompletion. ' . $e->getMessage(), $stats);
+                    $this->admin->message(
+                        'Exception: Could not initialise pollForCompletion. ' . $e->getMessage(),
+                        $stats
+                    );
                 }
 
                 $this->endCleanup($stats);
@@ -517,7 +520,7 @@ class Index extends Page
             }
         }
 
-        $this->admin->message('Clean up process DID NOT complete successfully.', $stats);
+        $this->admin->message('Clean up process DID NOT successfully complete on this occasion.', $stats);
         $stats['cleanup_loops']++;
         $this->admin->setStats($stats);
 
@@ -549,11 +552,11 @@ class Index extends Page
     /**
      * Manual clean of index process
      */
-    public function cleanUpIndexingCheck()
+    public function cleanupIndexingCheck()
     {
-        $force_clean_up = $this->admin->options()['force_clean_up'] ?? null;
+        $force_clean_up = $this->admin->options()['force_cleanup'] ?? null;
         if ($force_clean_up) {
-            $this->admin->updateOption('force_clean_up', null);
+            $this->admin->updateOption('force_cleanup', null);
             $this->cleanUpIndexing();
         }
     }
