@@ -310,9 +310,9 @@ class Index extends Page
             while (is_resource($handle)) {
                 fclose($handle);
             }
-            return mb_strlen(file_get_contents($path));
-        }
 
+            return true;
+        }
         return false;
     }
 
@@ -467,10 +467,9 @@ class Index extends Page
         $file_location = $this->admin->importLocation() . 'moj-bulk-index-body.json';
         $this->admin->message('Getting last index body from ' . $file_location, $stats);
 
+        clearstatcache(true, $file_location);
         if (file_exists($file_location)) {
             $this->admin->message('The index body file exists', $stats);
-
-            clearstatcache(true, $file_location);
             $file_size = filesize($file_location);
             $this->admin->message('The file size is ' . $this->admin->humanFileSize($file_size), $stats);
 
@@ -549,6 +548,10 @@ class Index extends Page
         // set active to false
         delete_option('_moj_es_bulk_index_active');
         $this->admin->message('Removed the index ACTIVE option: _moj_es_bulk_index_active', $stats);
+
+        // set active to false
+        delete_option('_moj_es_index_total_items');
+        $this->admin->message('Removed the TOTAL ITEMS option: _moj_es_index_total_items', $stats);
 
         // remove the force stop transient
         delete_transient('moj_es_index_force_stopped');
