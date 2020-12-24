@@ -550,6 +550,10 @@ class Index extends Page
         delete_option('_moj_es_bulk_index_active');
         $this->admin->message('Removed the index ACTIVE option: _moj_es_bulk_index_active', $stats);
 
+        // set active to false
+        delete_option('_moj_es_index_total_items');
+        $this->admin->message('Removed the TOTAL ITEMS option: _moj_es_index_total_items', $stats);
+
         // remove the force stop transient
         delete_transient('moj_es_index_force_stopped');
         $this->admin->message('Removed the FORCED STOPPED transient: moj_es_index_force_stopped', $stats);
