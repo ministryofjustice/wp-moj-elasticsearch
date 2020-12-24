@@ -8,6 +8,8 @@ namespace MOJElasticSearch;
  */
 class Auth
 {
+    public $ok = true;
+
     public function __construct()
     {
         // is the WP environment loaded?
@@ -48,7 +50,7 @@ class Auth
     private function canRunEnvironment()
     {
         if (!function_exists('add_action')) {
-            $this->error('unavailable');
+            $this->exitPlugin('unavailable');
         }
     }
 
@@ -71,7 +73,7 @@ class Auth
         if (!is_admin() || !current_user_can('manage_options')) {
             $_get = $_GET['page'] ?? '';
             if ($_get === 'moj_es') {
-                $this->error('forbidden');
+                $this->exitPlugin('forbidden');
             }
         }
     }
@@ -101,17 +103,29 @@ class Auth
 
     public function unauthorised()
     {
-        header("HTTP/1.1 401 Unauthorized");
+        $class = 'notice notice-error is-dismissible';
+        $message = __('MoJ Elasticsearch cannot run. A 401 Unauthorised was encountered.');
+
+        printf('<div class="%1$s"><p>%2$s</p></div>', esc_attr($class), esc_html($message));
+        $this->ok = false;
     }
 
     public function forbidden()
     {
-        header("HTTP/1.1 403 Forbidden");
+        $class = 'notice notice-error is-dismissible';
+        $message = __('MoJ Elasticsearch cannot run. 403 Forbidden.');
+
+        printf('<div class="%1$s"><p>%2$s</p></div>', esc_attr($class), esc_html($message));
+        $this->ok = false;
     }
 
     public function unavailable()
     {
-        header("HTTP/1.1 503 Service Temporarily Unavailable");
+        $class = 'notice notice-error is-dismissible';
+        $message = __('MoJ Elasticsearch cannot run. A 503 Service Temporarily Unavailable was encountered.');
+
+        printf('<div class="%1$s"><p>%2$s</p></div>', esc_attr($class), esc_html($message));
+        $this->ok = false;
     }
 
     public function noticePluginCantRun()
@@ -120,5 +134,6 @@ class Auth
         $message = __('Whoops! MoJ Elasticsearch cannot run. Please check that ElasticPress is activated.');
 
         printf('<div class="%1$s"><p>%2$s</p></div>', esc_attr($class), esc_html($message));
+        $this->ok = false;
     }
 }

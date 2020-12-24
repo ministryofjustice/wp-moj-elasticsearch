@@ -135,7 +135,7 @@ class Index extends Page
         if (isset($args['method']) && in_array($args['method'], $allow_methods)) {
             // schedule a task to clean up the index once it has finished
             if (!wp_next_scheduled('moj_es_cleanup_cron')) {
-                wp_schedule_event(time(), $this->admin->cronInterval('every_five_minutes'), 'moj_es_cleanup_cron');
+                wp_schedule_event(time(), $this->admin->cronInterval('every_ninety_seconds'), 'moj_es_cleanup_cron');
             }
             $request = $this->index($request, $failures, $host, $path, $args);
         }
@@ -266,10 +266,10 @@ class Index extends Page
         $body_new_size = mb_strlen($body, 'UTF-8');
         $body_stored_size = 0;
 
-        if (file_exists($this->admin->importLocation() . 'moj-bulk-index-body.json')) {
-            $body_stored_size = mb_strlen(
-                file_get_contents($this->admin->importLocation() . 'moj-bulk-index-body.json')
-            );
+        $cached_body_path = $this->admin->importLocation() . 'moj-bulk-index-body.json';
+        clearstatcache(true, $cached_body_path);
+        if (file_exists($cached_body_path)) {
+            $body_stored_size = filesize($cached_body_path);
         }
 
         // payload maybe too big?
@@ -345,27 +345,26 @@ class Index extends Page
         $args['timeout'] = 120; // for all requests
 
         if ($request === 'doing-cleanup') {
-            $this->admin->message('Executing <small><pre>wp_remote_request(' . $query['url'] . ', ' . print_r($args) . ')</pre></small>', $message_stats);
+            $this->admin->message('Executing <small><pre>wp_remote_request()</pre></small>', $message_stats);
         }
 
+        // send payload
         $remote_request = wp_remote_request($query['url'], $args);
+
         if (is_wp_error($remote_request)) {
             if ($request === 'doing-cleanup') {
                 $this->admin->message('There was a transport error: ' . $remote_request->get_error_message(), $message_stats);
                 $this->admin->message('About to sleep for 5 and send again in the file; ' . basename(__FILE__), $message_stats);
             }
             sleep(5);
-            return $this->requestIntercept(null, $query, $args, null);
+            return $this->requestIntercept($request, $query, $args, $failures, $message_stats);
         }
 
         if ($request === 'doing-cleanup') {
             $this->admin->message('Last index body has been sent!', $message_stats);
         }
 
-        $handle = fopen($body_file, 'w');
-        while (is_resource($handle)) {
-            fclose($handle);
-        }
+        unlink($body_file);
 
         if ($request === 'doing-cleanup') {
             $this->admin->message('Index body file has been emptied ready for next run.', $message_stats);
@@ -377,11 +376,6 @@ class Index extends Page
         $this->admin->setStats($stats); // next, save request params
 
         if ($request === 'doing-cleanup') {
-            clearstatcache(true, $body_file);
-            $this->admin->message(
-                'bulk_body_size real value: ' . filesize($body_file),
-                $message_stats
-            );
             $this->admin->message('Returning to the cleanup method...', $message_stats);
         }
 
@@ -419,9 +413,9 @@ class Index extends Page
         $this->admin->setStats($stats);
 
         // mock response
-        return array(
+        $request = array(
             'headers' => array(),
-            'body' => file_get_contents(__DIR__ . '/../assets/json/mock.json'),
+            'body' => '{"took":8,"ingest_took":0,"errors":false,"items":[{"index":{"_index":"my-index","_type":"_doc","_id":"12345","_version":9,"result":"updated","_shards":{"total":2,"successful":2,"failed":0},"_seq_no":9,"_primary_term":1,"status":200}}]}',
             'response' => array(
                 'code' => 200,
                 'message' => 'OK (falsy)',
@@ -429,6 +423,8 @@ class Index extends Page
             'cookies' => array(),
             'http_response' => [],
         );
+
+        return $request;
     }
 
     /**
