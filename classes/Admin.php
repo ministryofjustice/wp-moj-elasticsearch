@@ -47,7 +47,7 @@ class Admin extends Options
     {
         // MoJ
         add_action('moj_es_exec_index', [$this, 'scheduleIndexing']);
-        add_filter('cron_schedules', [$this, 'addCronIntervals']);
+        add_filter('cron_schedules', [$this, 'addCronIntervals'], 99);
         // style set up
         add_action('admin_init', [$this, 'register']);
         add_action('admin_enqueue_scripts', [$this, 'enqueue']);
@@ -268,12 +268,18 @@ class Admin extends Options
      * @param $schedules
      * @return array
      */
-    public function addCronIntervals($schedules): array
+    public function addCronIntervals($schedules)
     {
         // moj_es_every_minute
         $schedules[$this->cronInterval('every_minute', true)] = [
             'interval' => 60,
             'display' => esc_html__('Every Minute')
+        ];
+
+        // every_ninety_seconds
+        $schedules[$this->cronInterval('every_ninety_seconds', true)] = [
+            'interval' => 90,
+            'display' => esc_html__('Every 90 Seconds')
         ];
 
         return $schedules;

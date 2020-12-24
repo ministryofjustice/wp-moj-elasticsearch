@@ -141,14 +141,13 @@ class Alias
             if (false == wp_next_scheduled('moj_es_poll_for_completion')) {
                 wp_schedule_event(
                     time(),
-                    $this->admin->cronInterval('every_minute'),
+                    $this->admin->cronInterval('every_ninety_seconds'),
                     'moj_es_poll_for_completion'
                 );
                 return true;
             }
             throw new Exception('Poll for completion schedule was already set. The task to update the alias is running.');
         }
-        throw new Exception('The type and value of _moj_es_bulk_index_active is: ' . gettype(get_option('_moj_es_bulk_index_active')) . ' | ' . get_option('_moj_es_bulk_index_active'));
         throw new Exception('CRON to switch alias prevented. Confidence of completed index was too low.');
     }
 
@@ -203,7 +202,7 @@ class Alias
     public function getAliasIndexes()
     {
         if (false === ($alias_indexes = get_transient('_moj_es_alias_indexes'))) {
-            $host = get_option('EP_HOST');
+            $host = get_option('ep_host');
             $alias = get_option('_moj_es_alias_name');
             $url = $host . '_cat/aliases/' . $alias . '?v&format=json&h=index';
             $response = wp_safe_remote_get($url);
@@ -214,7 +213,7 @@ class Alias
                 foreach ($alias_indexes as $alias_index) {
                     $indexes[] = $alias_index->index;
                 }
-                set_transient('_moj_es_alias_indexes', $indexes, 2 * MINUTE_IN_SECONDS);
+                set_transient('_moj_es_alias_indexes', $indexes, MINUTE_IN_SECONDS);
                 $alias_indexes = $indexes;
             }
         }

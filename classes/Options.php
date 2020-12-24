@@ -172,14 +172,15 @@ class Options
             return $this->statsDB();
         }
 
+        $file_path = $this->importLocation() . 'moj-bulk-index-stats.json';
         // if not present, create the default stats file.
-        clearstatcache(true, $this->importLocation() . 'moj-bulk-index-stats.json');
-        if (!file_exists($this->importLocation() . 'moj-bulk-index-stats.json')) {
+        clearstatcache(true, $file_path);
+        if (!file_exists($file_path)) {
             $this->setStats($this->stats_default);
         }
 
         // finally, get from the file system
-        return (array)json_decode(file_get_contents($this->importLocation() . 'moj-bulk-index-stats.json'));
+        return (array)json_decode(file_get_contents($file_path));
     }
 
     public function setStats($es_stats)
@@ -192,11 +193,13 @@ class Options
         }
 
         // storage is file system
-        $handle = fopen($this->importLocation() . 'moj-bulk-index-stats.json', 'w');
+        $file_path = $this->importLocation() . 'moj-bulk-index-stats.json';
+        $handle = fopen($file_path, 'w');
         fwrite($handle, json_encode($es_stats));
-        while (is_resource($handle)) {
-            fclose($handle);
-        }
+        fclose($handle);
+
+        // touch to adjust modification time.
+        touch($file_path);
 
         return true;
     }
@@ -211,9 +214,10 @@ class Options
             return update_option('_moj_bulk_index_stats', $this->stats_default);
         }
 
-        clearstatcache();
-        if (file_exists($this->importLocation() . 'moj-bulk-index-stats.json')) {
-            unlink($this->importLocation() . 'moj-bulk-index-stats.json');
+        $file_path = $this->importLocation() . 'moj-bulk-index-stats.json';
+        clearstatcache(true, $file_path);
+        if (file_exists($file_path)) {
+            unlink($file_path);
         }
 
         return true;
@@ -229,7 +233,6 @@ class Options
         $file_dir = get_temp_dir();
         $path = $file_dir . basename(plugin_dir_path(dirname(__FILE__, 1)));
 
-        clearstatcache();
         if (!is_dir($path)) {
             if (!mkdir($path)) {
                 throw new Exception('importLocation directory could not be created in : ' . $path);
@@ -248,7 +251,7 @@ class Options
         try {
             return $this->tmpPath();
         } catch (Exception $e) {
-            trigger_error('Caught location exception: ' .  $e->getMessage());
+            trigger_error('Caught location exception: ' . $e->getMessage());
         }
         return false;
     }

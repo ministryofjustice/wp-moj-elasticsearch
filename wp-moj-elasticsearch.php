@@ -12,6 +12,10 @@
  **/
 
 /**
+ * Get the root of the plugin
+ */
+define('MOJ_ES_DIR', __DIR__);
+/**
  * Disable ElasticPress dashboard sync
  */
 define('EP_DASHBOARD_SYNC', false);
@@ -33,7 +37,8 @@ use MOJElasticSearch\SignAmazonEsRequests;
 // settings
 use MOJElasticSearch\Settings\IndexSettings;
 
-if (new Auth) {
+$moj_es_auth = new Auth();
+if ($moj_es_auth->ok) {
     $moj_es_admin = new Admin();
     $moj_es_alias = new Alias($moj_es_admin);
     new ElasticPressHooks($moj_es_alias);
