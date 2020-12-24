@@ -98,9 +98,6 @@ class Alias
             if ($safe_delete) {
                 $this->scheduleDeletion($index_old);
             }
-
-            // set active to false
-            delete_option('_moj_es_bulk_index_active');
         }
 
         return $index_updated;
@@ -130,6 +127,8 @@ class Alias
             throw new Exception('No need to update the alias. The request is coming from WordPress.');
         }
 
+        $this->admin->message('The type and value of _moj_es_bulk_index_active is: ' . gettype(get_option('_moj_es_bulk_index_active')) . ' | ' . (get_option('_moj_es_bulk_index_active') ? 'true' : 'false'), $stats);
+
         // check confidence to switch index
         if ($this->admin->maybeAllItemsIndexed($stats)) {
             // schedule a task to complete the index process
@@ -143,6 +142,7 @@ class Alias
             }
             throw new Exception('Poll for completion schedule was already set. The task to update the alias is running.');
         }
+        throw new Exception('The type and value of _moj_es_bulk_index_active is: ' . gettype(get_option('_moj_es_bulk_index_active')) . ' | ' . get_option('_moj_es_bulk_index_active'));
         throw new Exception('CRON to switch alias prevented. Confidence of completed index was too low.');
     }
 

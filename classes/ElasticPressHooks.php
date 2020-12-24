@@ -160,6 +160,8 @@ class ElasticPressHooks
      */
     public function excludeMetaMappingFields($keys, $post): array
     {
+        global $wpdb;
+
         $excluded = [
             'lbfw_likes',
             'lhs_menu_on',
@@ -192,8 +194,6 @@ class ElasticPressHooks
             'guidance_tabs'
         ];
 
-        global $wpdb;
-
         $query = "SELECT DISTINCT meta_key from `wp_postmeta`
         where meta_key like '%_html_content'
         OR meta_key like '%_links'
@@ -207,7 +207,6 @@ class ElasticPressHooks
         // Store DB query in a transient to reduce SQL calls slowing indexing
         if (false === ($meta_keys = get_transient('moj_es_exclude_meta_fields'))) {
             $meta_keys = $wpdb->get_col($wpdb->prepare($query));
-
             set_transient('moj_es_exclude_meta_fields', $meta_keys, MONTH_IN_SECONDS);
         }
 

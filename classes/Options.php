@@ -173,6 +173,7 @@ class Options
         }
 
         // if not present, create the default stats file.
+        clearstatcache(true, $this->importLocation() . 'moj-bulk-index-stats.json');
         if (!file_exists($this->importLocation() . 'moj-bulk-index-stats.json')) {
             $this->setStats($this->stats_default);
         }
@@ -210,6 +211,7 @@ class Options
             return update_option('_moj_bulk_index_stats', $this->stats_default);
         }
 
+        clearstatcache();
         if (file_exists($this->importLocation() . 'moj-bulk-index-stats.json')) {
             unlink($this->importLocation() . 'moj-bulk-index-stats.json');
         }
@@ -227,6 +229,7 @@ class Options
         $file_dir = get_temp_dir();
         $path = $file_dir . basename(plugin_dir_path(dirname(__FILE__, 1)));
 
+        clearstatcache();
         if (!is_dir($path)) {
             if (!mkdir($path)) {
                 throw new Exception('importLocation directory could not be created in : ' . $path);
@@ -245,22 +248,31 @@ class Options
         try {
             return $this->tmpPath();
         } catch (Exception $e) {
-            $text = 'Caught location exception: ' .  $e->getMessage();
-            trigger_error($text);
-            $this->message($text);
+            trigger_error('Caught location exception: ' .  $e->getMessage());
         }
+        return false;
     }
 
     /**
      * Log a message for display on the front end
      * part of the stats api
      * @param $text
-     * @param bool $stats
+     * @param array $stats
      */
     public function message($text, &$stats)
     {
         if ($this->options()['show_cleanup_messages'] ?? null) {
             $stats['messages'][] = $text;
         }
+    }
+
+    /**
+     * Reset the messages array
+     * part of the stats api
+     * @param $stats
+     */
+    public function messageReset(&$stats)
+    {
+        $stats['messages'] = [];
     }
 }

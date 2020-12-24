@@ -2,7 +2,7 @@
 
 namespace MOJElasticSearch;
 
-use PHPMailer\PHPMailer\Exception;
+use Exception;
 use WP_Error;
 use MOJElasticSearch\Settings\Page;
 use MOJElasticSearch\Settings\IndexSettings;
@@ -135,7 +135,7 @@ class Index extends Page
         if (isset($args['method']) && in_array($args['method'], $allow_methods)) {
             // schedule a task to clean up the index once it has finished
             if (!wp_next_scheduled('moj_es_cleanup_cron')) {
-                wp_schedule_event(time(), $this->admin->cronInterval('every_minute'), 'moj_es_cleanup_cron');
+                wp_schedule_event(time(), $this->admin->cronInterval('every_five_minutes'), 'moj_es_cleanup_cron');
             }
             $request = $this->index($request, $failures, $host, $path, $args);
         }
@@ -325,7 +325,7 @@ class Index extends Page
      * @param $query
      * @param $args
      * @param $failures
-     * @param array $stats
+     * @param array $message_stats
      * @return array|WP_Error
      * @uses add_filter('ep_do_intercept_request');
      *
@@ -334,7 +334,8 @@ class Index extends Page
     public function requestIntercept($request, $query, $args, $failures, &$message_stats = [])
     {
         $stats = $this->admin->getStats();
-        $body = file_get_contents($this->admin->importLocation() . 'moj-bulk-index-body.json');
+        $body_file = $this->admin->importLocation() . 'moj-bulk-index-body.json';
+        $body = file_get_contents($body_file);
         if (!$body) {
             if ($request === 'doing-cleanup') {
                 $this->admin->message('The index body could not be accessed', $message_stats);
@@ -361,7 +362,7 @@ class Index extends Page
             $this->admin->message('Last index body has been sent!', $message_stats);
         }
 
-        $handle = fopen($this->admin->importLocation() . 'moj-bulk-index-body.json', 'w');
+        $handle = fopen($body_file, 'w');
         while (is_resource($handle)) {
             fclose($handle);
         }
@@ -376,8 +377,9 @@ class Index extends Page
         $this->admin->setStats($stats); // next, save request params
 
         if ($request === 'doing-cleanup') {
+            clearstatcache(true, $body_file);
             $this->admin->message(
-                'bulk_body_size real value: ' . filesize($this->admin->importLocation() . 'moj-bulk-index-body.json'),
+                'bulk_body_size real value: ' . filesize($body_file),
                 $message_stats
             );
             $this->admin->message('Returning to the cleanup method...', $message_stats);
@@ -454,6 +456,7 @@ class Index extends Page
         }
 
         $stats = $this->admin->getStats();
+        $this->admin->messageReset($stats);
         $this->admin->message('Is Indexing? ' . ($this->admin->isIndexing() ? 'YES' : 'No'), $stats);
 
         if ($stats['cleanup_loops'] > 3) {
@@ -466,13 +469,17 @@ class Index extends Page
 
         if (file_exists($file_location)) {
             $this->admin->message('The index body file exists', $stats);
+
+            clearstatcache(true, $file_location);
             $file_size = filesize($file_location);
             $this->admin->message('The file size is ' . $this->admin->humanFileSize($file_size), $stats);
+
             if ($file_size > 0) {
                 // begin cleaning
                 $cleanup_start = time();
                 update_option('moj_es_cleanup_process_running', $cleanup_start);
                 $this->admin->message('Checks have PASSED. Cleaning started at ' . date('H:i:s (d:m:y)', $cleanup_start), $stats);
+
                 // send last batch of posts to index
                 $url = $stats['last_url'] ?? null;
                 $args = $stats['last_args'] ?? null;
@@ -503,7 +510,8 @@ class Index extends Page
                 // Poll for completion
                 try {
                     $this->alias->pollForCompletion($stats);
-                } catch (\Exception $e) {
+                } catch (Exception $e) {
+                    trigger_error('Exception: Could not initialise pollForCompletion. ' . $e->getMessage());
                     $this->admin->message(
                         'Exception: Could not initialise pollForCompletion. ' . $e->getMessage(),
                         $stats
@@ -537,6 +545,14 @@ class Index extends Page
         // quitting the process
         delete_option('moj_es_cleanup_process_running');
         $this->admin->message('Removed the CRON process lock option: moj_es_cleanup_process_running', $stats);
+
+        // set active to false
+        delete_option('_moj_es_bulk_index_active');
+        $this->admin->message('Removed the index ACTIVE option: _moj_es_bulk_index_active', $stats);
+
+        // remove the force stop transient
+        delete_transient('moj_es_index_force_stopped');
+        $this->admin->message('Removed the FORCED STOPPED transient: moj_es_index_force_stopped', $stats);
 
         // stop timer
         $this->admin->indexTimer(false);
