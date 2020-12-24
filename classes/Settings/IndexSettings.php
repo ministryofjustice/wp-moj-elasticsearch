@@ -3,6 +3,7 @@
 namespace MOJElasticSearch\Settings;
 
 use MOJElasticSearch\Admin;
+use MOJElasticSearch\Alias;
 use MOJElasticSearch\Settings;
 
 /**
@@ -38,11 +39,17 @@ class IndexSettings extends Page
      */
     public $admin;
 
-    public function __construct(Admin $admin)
+    /**
+     * @var Alias
+     */
+    private $alias;
+
+    public function __construct(Admin $admin, Alias $alias)
     {
         parent::__construct();
 
         $this->admin = $admin;
+        $this->alias = $alias;
         self::hooks();
     }
 
@@ -140,37 +147,25 @@ class IndexSettings extends Page
         <p><small><strong>Attached indices</strong></small><br>
             <small>The following index names are attached to the alias (<em><?= $current_alias ?></em>) and
                 will produce results when queried.</small>
-            <?= $this->listAliasIndexes($current_alias) ?>
+            <?= $this->listAliasIndexes() ?>
         </p>
         <?php
     }
 
-    public function listAliasIndexes($current_alias)
+    public function listAliasIndexes()
     {
-        if (!empty($current_alias)) {
-            $url = get_option('EP_HOST') . '_cat/aliases/' . $current_alias . '?v&format=json&h=index';
-            $response = wp_safe_remote_get($url);
+        $alias_indexes = $this->alias->getAliasIndexes();
 
-            if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) == 200) {
-                $alias_indexes = json_decode(wp_remote_retrieve_body($response));
-
-                if (is_array($alias_indexes)) {
-                    foreach ($alias_indexes as $alias_index) { ?>
-                        <p><?php echo $alias_index->index; ?></p>
-                        <?php
-                    }
-                } else { ?>
-                    <p>No Indexes are assigned to the alias</p>
-                    <?php
-                }
-            } else {
-                ?>
-                <p>Error Connecting to ElasticSearch</p>
+        if ($alias_indexes) {
+            if (is_array($alias_indexes)) {
+                echo '<br>' . implode('<br>', $alias_indexes);
+            } else { ?>
+                <p>No Indexes are assigned to the alias</p>
                 <?php
             }
         } else {
             ?>
-            <p>Alias is not set</p>
+            <p>Error getting the alias indexes.</p>
             <?php
         }
     }
