@@ -67,6 +67,12 @@ class Alias
                 $safe_delete = false; // we cannot delete the index we have just created
             }
 
+            // maybe the old index doesn't exist on alias?
+            $alias_indexes = $this->getAliasIndexes();
+            if (!in_array($index_old, $alias_indexes)) {
+                $template = 'add.json';
+            }
+
             // track the newly created index
             $index_updated = update_option('_moj_es_index_name', $index_new);
 
@@ -192,5 +198,27 @@ class Alias
                 ' ... you may prevent the action by deleting the task: wp cron event delete moj_es_delete_index'
             )
         );
+    }
+
+    public function getAliasIndexes()
+    {
+        if (false === ($alias_indexes = get_transient('_moj_es_alias_indexes'))) {
+            $host = get_option('EP_HOST');
+            $alias = get_option('_moj_es_alias_name');
+            $url = $host . '_cat/aliases/' . $alias . '?v&format=json&h=index';
+            $response = wp_safe_remote_get($url);
+
+            if (!is_wp_error($response) && wp_remote_retrieve_response_code($response) == 200) {
+                $alias_indexes = json_decode(wp_remote_retrieve_body($response));
+                $indexes = [];
+                foreach ($alias_indexes as $alias_index) {
+                    $indexes[] = $alias_index->index;
+                }
+                set_transient('_moj_es_alias_indexes', $indexes, 2 * MINUTE_IN_SECONDS);
+                $alias_indexes = $indexes;
+            }
+        }
+
+        return $alias_indexes;
     }
 }
