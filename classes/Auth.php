@@ -15,6 +15,7 @@ class Auth
         // is the WP environment loaded?
         $this->hasAbsPath();
         $this->hooks();
+        return $this->ok;
     }
 
     public function hooks()

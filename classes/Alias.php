@@ -47,13 +47,28 @@ class Alias
     {
         $index_updated = false;
 
-        if ($this->isESQueueEmpty() && wp_next_scheduled('moj_es_poll_for_completion')) {
+        // set up message array
+        $stats = get_option('_moj_es_stats_cache_for_alias_update');
+        $pretext = 'Update -> ';
+
+        $this->admin->message($pretext . 'Alias Updating has begun', $stats);
+
+        $es_queue_empty = $this->isESQueueEmpty();
+        $this->admin->message($pretext . 'Is ES Queue empty?... ' . ($es_queue_empty ? 'YES' : 'NO'), $stats);
+
+        $cron_poll_for_complete = wp_next_scheduled('moj_es_poll_for_completion');
+        $this->admin->message($pretext . 'Is polling cron running?... ' . ($cron_poll_for_complete ? 'YES' : 'NO'), $stats);
+
+        if ($es_queue_empty && $cron_poll_for_complete) {
             // prevent cron hook from running:
             $timestamp = wp_next_scheduled('moj_es_poll_for_completion');
             wp_unschedule_event($timestamp, 'moj_es_poll_for_completion');
 
             $index_old = get_option('_moj_es_index_name');
             $index_new = get_option('_moj_es_new_index_name');
+
+            $this->admin->message($pretext . 'OLD index name = ' .  $index_old, $stats);
+            $this->admin->message($pretext . 'NEW index name = ' .  $index_new, $stats);
 
             // cache the old index name for deletion
             $safe_delete = true; // in case of first run
@@ -63,15 +78,19 @@ class Alias
 
             // first run
             if ($index_new === $index_old) {
+                $this->admin->message($pretext . 'OLD + NEW index names are the SAME. Is this a first run?', $stats);
                 $template = 'add.json';
                 $safe_delete = false; // we cannot delete the index we have just created
             }
 
             // maybe the old index doesn't exist on alias?
             $alias_indexes = $this->getAliasIndexes();
+            $this->admin->message($pretext . 'Current indexes on alias are ' .  implode(' - ', $alias_indexes), $stats);
             if (!in_array($index_old, $alias_indexes)) {
+                $this->admin->message($pretext . 'OLD index is NOT attached to the alias.', $stats);
                 $template = 'add.json';
             }
+            $this->admin->message($pretext . 'Using the alias JSON template: ' .  $template, $stats);
 
             // track the newly created index
             $index_updated = update_option('_moj_es_index_name', $index_new);
@@ -90,21 +109,36 @@ class Alias
                 'body' => $body
             ];
 
+            $this->admin->message($pretext . 'Making request to ES with: <pre>' .  $body . '</pre>', $stats);
+
             $response = wp_safe_remote_post($this->url, $args);
 
             // clear new index name
             update_option('_moj_es_new_index_name', null);
 
             if (is_wp_error($response)) {
-                trigger_error('[MOJ ES WARNING] ' . $response->get_error_message() . '.');
-                return false;
+                // this trigger will log the error and then cause the script to exit.
+                trigger_error('[MOJ ES ERROR] ' . $response->get_error_message() . '.', E_USER_ERROR);
             }
 
             // no error... let's create a task to remove the index safely in 60 days
             if ($safe_delete) {
                 $this->scheduleDeletion($index_old);
+                $this->admin->message($pretext . 'A task was set to DELETE an index (' . $index_old . ') in 60 days.', $stats);
             }
+
+            delete_option('_moj_es_bulk_index_active');
+            $this->admin->message($pretext . 'Removed the index ACTIVE option: _moj_es_bulk_index_active', $stats);
+
+            delete_option('_moj_es_stats_cache_for_alias_update');
+            $this->admin->message($pretext . 'Removed the STATS CACHE option: _moj_es_stats_cache_for_alias_update', $stats);
         }
+
+        if (!$index_updated) {
+            $this->admin->message($pretext . 'The was a problem switching the alias.', $stats);
+        }
+
+        $this->admin->setStats($stats);
 
         return $index_updated;
     }
@@ -139,11 +173,13 @@ class Alias
         if ($this->admin->maybeAllItemsIndexed($stats)) {
             // schedule a task to complete the index process
             if (false == wp_next_scheduled('moj_es_poll_for_completion')) {
+                update_option('_moj_es_stats_cache_for_alias_update', $stats);
                 wp_schedule_event(
-                    time(),
+                    time() + 30,
                     $this->admin->cronInterval('every_ninety_seconds'),
                     'moj_es_poll_for_completion'
                 );
+                $this->admin->message('The task to safely update the alias is running', $stats);
                 return true;
             }
             throw new Exception('Poll for completion schedule was already set. The task to update the alias is running.');

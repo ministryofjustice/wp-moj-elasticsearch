@@ -82,6 +82,7 @@ class IndexSettings extends Page
 
         $fields_index_management = [
             'storage_is_db' => [$this, 'storageIsDB'],
+            'max_payload' => [$this, 'maxPayloadSize'],
             'refresh_rate' => [$this, 'pollingDelayField'],
             'force_wp_query' => [$this, 'forceWPQuery'],
             'show_cleanup_messages' => [$this, 'showCleanupMessages'],
@@ -343,6 +344,30 @@ class IndexSettings extends Page
         <?php
     }
 
+    public function maxPayloadSize()
+    {
+        $option = $this->options();
+        $key = 'max_payload';
+        $key_size = 'max_payload_size';
+        ?>
+        <input type="text" value="<?= $option[$key] ?? 5 ?>" name="<?= $this->optionName() ?>[<?= $key ?>]"/>
+        <select name="<?= $this->optionName() ?>[<?= $key_size ?>]">
+            <option value="B" <?php selected($option[$key_size], "B"); ?>>Bytes</option>
+            <option value="KB" <?php selected($option[$key_size], "KB"); ?>>Kilobytes</option>
+            <option value="MB" <?php selected($option[$key_size], "MB"); ?>>Megabytes</option>
+            <option value="GB" <?php selected($option[$key_size], "GB"); ?>>Gigabytes</option>
+        </select>
+        <p>Enter a maximum HTTP request payload limit here. This represents the amount of data that can be sent in one
+            request. <a
+                href="https://docs.aws.amazon.com/elasticsearch-service/latest/developerguide/aes-limits.html#network-limits"
+                target="_blank">View AWS network limits</a>.</p>
+        <p class="feature-desc">Data inserts into ES are controlled by analysing a post size. We manage the post
+            according to size and effectively build a bulk insert file that can be sent in one request. This approach
+            means we don't have to worry about ES rejecting a request due to size. It also means the indexing process
+            can continue without interruption.</p>
+        <?php
+    }
+
     public function indexStatisticsAjax()
     {
         $output = '';
@@ -511,15 +536,17 @@ class IndexSettings extends Page
      */
     public function indexMessages($stats)
     {
-        $index_messages = $stats['messages'] ?? [];
         $output = '';
+        if ($this->options()['show_cleanup_messages'] ?? null) {
+            $index_messages = $stats['messages'] ?? [];
 
-        if (!empty($index_messages)) {
-            $output = '<ol>';
-            foreach ($index_messages as $index_message) {
-                $output .= '<li>' . $index_message . '</li>';
+            if (!empty($index_messages)) {
+                $output = '<ol>';
+                foreach ($index_messages as $index_message) {
+                    $output .= '<li>' . $index_message . '</li>';
+                }
+                $output .= '</ol>';
             }
-            $output .= '</ol>';
         }
 
         return $output;
