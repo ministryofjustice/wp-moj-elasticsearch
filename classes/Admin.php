@@ -517,7 +517,14 @@ class Admin extends Options
 
         $result = (($total_items_loose_buffer <= $totals) && ($totals <= $total_items));
 
-        $this->message('Indexing ' . ($result ? 'completed successfully' : 'DID NOT complete. The buffer-range was out of scope.'), $stats);
+        $this->message(
+            '<strong>Indexing ' . (
+                $result
+                    ? '<span style="color: #008000">completed successfully</span>'
+                    : '<span style="color: #800000">DID NOT complete. The buffer-range was out of scope.</span>'
+            ) . '</strong>',
+            $stats
+        );
 
         return $result;
     }

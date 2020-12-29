@@ -224,7 +224,7 @@ p > small > strong,
 .status-box.complete {
     border: none;
     --borderWidth: 2px;
-    background: #ffffff;
+    background-color: #ffffff;
     position: relative;
     border-radius: 0;
     color: #535252;
@@ -232,10 +232,12 @@ p > small > strong,
 .status-box.complete {
     border: 2px solid #46b450;
     color: #656565;
+    background-color: #deffe1;
 }
 .status-box.cancelled {
     border: 2px solid #b48346;
     color: #ccc;
+    background-color: #fff1e1;
 }
 .status-box.active small,
 .status-box.complete small {

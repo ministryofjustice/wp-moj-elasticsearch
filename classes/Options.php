@@ -142,6 +142,11 @@ class Options
         $options = $this->options();
 
         $options[$key] = $value;
+
+        if ($value === null) {
+            unset($options[$key]);
+        }
+
         return update_option($this->optionName(), $options);
     }
 
