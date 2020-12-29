@@ -50,7 +50,7 @@ class Alias
 
         // set up message array
         $stats = get_option('_moj_es_stats_cache_for_alias_update');
-        $pretext = 'Update -> ';
+        $pretext = '<strong style="color: #413256">Update -> </strong>';
 
         $this->admin->message($pretext . 'Alias Updating has begun', $stats);
 
@@ -129,7 +129,7 @@ class Alias
             }
 
             delete_option('_moj_es_bulk_index_active');
-            $this->admin->message($pretext . 'Removed the index ACTIVE option: _moj_es_bulk_index_active', $stats);
+            $this->admin->message($pretext . 'Removed the INDEX ACTIVE option: _moj_es_bulk_index_active', $stats);
 
             delete_option('_moj_es_stats_cache_for_alias_update');
             $this->admin->message($pretext . 'Removed the STATS CACHE option: _moj_es_stats_cache_for_alias_update', $stats);
@@ -139,11 +139,13 @@ class Alias
             $this->admin->message($pretext . 'The was a problem switching the alias.', $stats);
         }
 
-        $this->admin->setStats($stats);
 
         // shut down the checker cron:
         $timestamp = wp_next_scheduled('moj_es_alias_checker');
         wp_unschedule_event($timestamp, 'moj_es_alias_checker');
+        $this->admin->message($pretext . 'Removed the ALIAS CHECKER cron: moj_es_alias_checker', $stats);
+
+        $this->admin->setStats($stats);
 
         return $index_updated;
     }
@@ -178,21 +180,21 @@ class Alias
         if ($this->admin->maybeAllItemsIndexed($stats)) {
             // schedule a task to complete the index process
             if (false == wp_next_scheduled('moj_es_poll_for_completion')) {
-                update_option('_moj_es_stats_cache_for_alias_update', $stats);
-
                 wp_schedule_event(
                     time() + 5,
                     $this->admin->cronInterval('every_ninety_seconds'),
                     'moj_es_poll_for_completion'
                 );
 
+                // checks if the alias update process has happened. If not, checks if polling for completion is still
+                // running and restarts it, if it isn't.
                 wp_schedule_event(
                     time() + 60,
                     $this->admin->cronInterval('every_ninety_seconds'),
                     'moj_es_alias_checker'
                 );
 
-                $this->admin->message('The task to safely update the alias is running', $stats);
+                $this->admin->message('<strong><em>The task to safely update the alias is running...</em></strong>', $stats);
                 return true;
             }
             throw new Exception('Poll for completion schedule was already set. The task to update the alias is running.');

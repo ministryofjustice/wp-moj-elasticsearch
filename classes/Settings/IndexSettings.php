@@ -337,7 +337,7 @@ class IndexSettings extends Page
         $key = 'buffer_total_requests';
         ?>
         <input type="text" value="<?= $option[$key] ?? 20 ?>" name="<?= $this->optionName() ?>[<?= $key ?>]"/>
-        <p>This buffer is necessary and acts as a confidence rating. It helps decide whether an new index should be
+        <p>This buffer is necessary and acts as a confidence rating. It helps decide whether a new index should be
             activated and applied to the alias.</p>
         <p class="feature-desc">We check the total number of indexed items against the total available indexables.
             We add this buffer around the total stored requests to account for slight differences.</p>
@@ -358,13 +358,15 @@ class IndexSettings extends Page
             <option value="GB" <?php selected($option[$key_size], "GB"); ?>>Gigabytes</option>
         </select>
         <p>Enter a maximum HTTP request payload limit here. This represents the amount of data that can be sent in one
-            request. <a
+            request. If using AWS, <a
                 href="https://docs.aws.amazon.com/elasticsearch-service/latest/developerguide/aes-limits.html#network-limits"
-                target="_blank">View AWS network limits</a>.</p>
+                target="_blank">view network limits</a>.</p>
         <p class="feature-desc">Data inserts into ES are controlled by analysing a post size. We manage the post
             according to size and effectively build a bulk insert file that can be sent in one request. This approach
             means we don't have to worry about ES rejecting a request due to size. It also means the indexing process
-            can continue without interruption.</p>
+            can continue without interruption.<br><br>Displayed in stats above, you will see a value against the bulk
+            body size. This value is a percentage of the max payload amount. Please note that it will not be higher than
+            <code>24MB</code>. This is set to improve server load when opening and writing indexables to file.</p>
         <?php
     }
 

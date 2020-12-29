@@ -67,6 +67,9 @@ class Index extends Page
 
         $this->index_name_current = get_option('_moj_es_index_name');
 
+        // old clean up check
+        $this->cleanupIndexingCheck();
+
         self::hooks();
     }
 
@@ -77,7 +80,6 @@ class Index extends Page
     {
         add_filter('ep_pre_request_url', [$this, 'request'], 11, 5);
         add_action('moj_es_cleanup_cron', [$this, 'cleanUpIndexing']);
-        add_action('plugins_loaded', [$this, 'cleanupIndexingCheck']);
         add_action('wp_ajax_stats_load', [$this, 'getStatsHTML']);
         add_filter('ep_index_name', [$this, 'indexNames'], 11, 1);
         //add_filter('ep_index_health_stats_indices', [$this, 'healthStatsIndex'], 10, 1);
@@ -441,17 +443,27 @@ class Index extends Page
     public function cleanUpIndexing()
     {
         if ($this->admin->isIndexing()) {
-            return false;
-        }
-
-        // bail if process has started
-        if (get_option('moj_es_cleanup_process_running')) {
-            return false;
+            return 'Still indexing :(';
         }
 
         $stats = $this->admin->getStats();
         $this->admin->messageReset($stats);
-        $this->admin->message('Is Indexing? ' . ($this->admin->isIndexing() ? 'YES' : 'No'), $stats);
+
+        // process lock sanity check
+        if ($stats['cleanup_loops'] > 2) {
+            if (get_option('moj_es_cleanup_process_running')) {
+                $this->admin->message('Cleanup is stuck. Deleting the cleanup process lock and trying again.', $stats);
+                delete_option('moj_es_cleanup_process_running');
+                $stats['cleanup_loops'] = 0;
+            }
+        }
+
+        // bail if process has started
+        if (get_option('moj_es_cleanup_process_running')) {
+            $stats['cleanup_loops']++;
+            return false;
+        }
+
 
         if ($stats['cleanup_loops'] > 3) {
             $this->admin->message('Cleanup is stuck. Quitting now to prevent continuous loops...', $stats);
@@ -459,19 +471,22 @@ class Index extends Page
         }
 
         $file_location = $this->admin->importLocation() . 'moj-bulk-index-body.json';
-        $this->admin->message('Getting last index body from ' . $file_location, $stats);
+        $this->admin->message('CHECK: Getting last index body from ' . $file_location, $stats);
 
         clearstatcache(true, $file_location);
         if (file_exists($file_location)) {
-            $this->admin->message('The index body file exists', $stats);
+            $this->admin->message('CHECK: The index body file exists', $stats);
             $file_size = filesize($file_location);
-            $this->admin->message('The file size is ' . $this->admin->humanFileSize($file_size), $stats);
+            $this->admin->message('CHECK: The file size is ' . $this->admin->humanFileSize($file_size), $stats);
 
             if ($file_size > 0) {
                 // begin cleaning
                 $cleanup_start = time();
                 update_option('moj_es_cleanup_process_running', $cleanup_start);
-                $this->admin->message('Checks have PASSED. Cleaning started at ' . date('H:i:s (d:m:y)', $cleanup_start), $stats);
+                $this->admin->message(
+                    '<strong style="color: #008000">Checks have PASSED.</strong> Cleaning started at <strong>' . date('H:i:s (d:m:y)', $cleanup_start) . '</strong>',
+                    $stats
+                );
 
                 // send last batch of posts to index
                 $url = $stats['last_url'] ?? null;
@@ -516,6 +531,7 @@ class Index extends Page
             }
         }
 
+        $this->admin->message('The index body file DOES NOT exist', $stats);
         $this->admin->message('Clean up process DID NOT successfully complete on this occasion.', $stats);
         $stats['cleanup_loops']++;
         $this->admin->setStats($stats);
@@ -525,6 +541,7 @@ class Index extends Page
 
     public function endCleanup(&$stats)
     {
+        $this->admin->message('<strong style="color: #008000">Starting Housekeeping</strong>', $stats);
         // now we are done, stop the cron hook from running:
         $timestamp = wp_next_scheduled('moj_es_cleanup_cron');
         wp_unschedule_event($timestamp, 'moj_es_cleanup_cron');
@@ -532,7 +549,7 @@ class Index extends Page
         if (false == wp_next_scheduled('moj_es_cleanup_cron')) {
             $this->admin->message('Clean up CRON (moj_es_cleanup_cron) has been removed', $stats);
         } else {
-            $this->admin->message('Clean up CRON (moj_es_cleanup_cron) is still active', $stats);
+            $this->admin->message('Clean up CRON (moj_es_cleanup_cron) is still running', $stats);
         }
 
         // quitting the process
@@ -550,6 +567,11 @@ class Index extends Page
         // stop timer
         $this->admin->indexTimer(false);
         $this->admin->message('The index timer has been stopped', $stats);
+
+        if (false == ($this->admin->getStats()['force_stop'] ?? false)) {
+            // cache the stats for alias updating
+            update_option('_moj_es_stats_cache_for_alias_update', $stats);
+        }
         $this->admin->setStats($stats);
     }
 
@@ -558,11 +580,18 @@ class Index extends Page
      */
     public function cleanupIndexingCheck()
     {
-        $force_clean_up = $this->admin->options()['force_cleanup'] ?? null;
+        $options = $this->admin->options();
+        $stats = $this->admin->getStats();
+        $force_clean_up = $options['force_cleanup'] ?? null;
+
         if ($force_clean_up) {
+            $this->admin->messageReset($stats);
+            $this->admin->message('Force cleanup -> can we clean? ' . ($force_clean_up ? 'YES' : 'NO'), $stats);
+            $this->admin->message('Force cleanup -> WE CLEANED: ' . $this->cleanUpIndexing(), $stats);
             $this->admin->updateOption('force_cleanup', null);
-            $this->cleanUpIndexing();
         }
+
+        $this->admin->setStats($stats);
     }
 
     public function getStatsHTML()
