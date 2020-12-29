@@ -37,6 +37,7 @@ class Alias
     public function hooks()
     {
         add_action('moj_es_poll_for_completion', [$this, 'update']);
+        add_action('moj_es_alias_checker', [$this, 'maybeActivatePoll']);
         add_action('moj_es_delete_index', [$this, 'deleteIndex']);
     }
 
@@ -67,8 +68,8 @@ class Alias
             $index_old = get_option('_moj_es_index_name');
             $index_new = get_option('_moj_es_new_index_name');
 
-            $this->admin->message($pretext . 'OLD index name = ' .  $index_old, $stats);
-            $this->admin->message($pretext . 'NEW index name = ' .  $index_new, $stats);
+            $this->admin->message($pretext . 'OLD index name = ' . $index_old, $stats);
+            $this->admin->message($pretext . 'NEW index name = ' . $index_new, $stats);
 
             // cache the old index name for deletion
             $safe_delete = true; // in case of first run
@@ -85,12 +86,12 @@ class Alias
 
             // maybe the old index doesn't exist on alias?
             $alias_indexes = $this->getAliasIndexes();
-            $this->admin->message($pretext . 'Current indexes on alias are ' .  implode(' - ', $alias_indexes), $stats);
+            $this->admin->message($pretext . 'Current indexes on alias are ' . implode(' - ', $alias_indexes), $stats);
             if (!in_array($index_old, $alias_indexes)) {
                 $this->admin->message($pretext . 'OLD index is NOT attached to the alias.', $stats);
                 $template = 'add.json';
             }
-            $this->admin->message($pretext . 'Using the alias JSON template: ' .  $template, $stats);
+            $this->admin->message($pretext . 'Using the alias JSON template: ' . $template, $stats);
 
             // track the newly created index
             $index_updated = update_option('_moj_es_index_name', $index_new);
@@ -109,7 +110,7 @@ class Alias
                 'body' => $body
             ];
 
-            $this->admin->message($pretext . 'Making request to ES with: <pre>' .  $body . '</pre>', $stats);
+            $this->admin->message($pretext . 'Making request to ES with: <pre>' . $body . '</pre>', $stats);
 
             $response = wp_safe_remote_post($this->url, $args);
 
@@ -139,6 +140,10 @@ class Alias
         }
 
         $this->admin->setStats($stats);
+
+        // shut down the checker cron:
+        $timestamp = wp_next_scheduled('moj_es_alias_checker');
+        wp_unschedule_event($timestamp, 'moj_es_alias_checker');
 
         return $index_updated;
     }
@@ -174,11 +179,19 @@ class Alias
             // schedule a task to complete the index process
             if (false == wp_next_scheduled('moj_es_poll_for_completion')) {
                 update_option('_moj_es_stats_cache_for_alias_update', $stats);
+
                 wp_schedule_event(
-                    time() + 30,
+                    time() + 5,
                     $this->admin->cronInterval('every_ninety_seconds'),
                     'moj_es_poll_for_completion'
                 );
+
+                wp_schedule_event(
+                    time() + 60,
+                    $this->admin->cronInterval('every_ninety_seconds'),
+                    'moj_es_alias_checker'
+                );
+
                 $this->admin->message('The task to safely update the alias is running', $stats);
                 return true;
             }
@@ -255,5 +268,20 @@ class Alias
         }
 
         return $alias_indexes;
+    }
+
+    public function maybeActivatePoll()
+    {
+        // is the moj_es_poll_for_completion cron task running?
+        if (false == wp_next_scheduled('moj_es_poll_for_completion')) {
+            // is polling cron still needed?
+            if (get_option('_moj_es_bulk_index_active')) {
+                wp_schedule_event(
+                    time() + 5,
+                    $this->admin->cronInterval('every_ninety_seconds'),
+                    'moj_es_poll_for_completion'
+                );
+            }
+        }
     }
 }
