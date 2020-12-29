@@ -109,6 +109,21 @@ class Admin extends Options
         }
 
         // catch Bulk index action
+        if (isset($options['storage_is_db'])) {
+            $current_storage_is_db = $this->options()['storage_is_db'] ?? '';
+            if ($current_storage_is_db !== $options['storage_is_db']) {
+                if ($this->isIndexing()) {
+                    self::settingNotice(
+                        'Storage medium (DB or file system) cannot be changed while an index job is running.',
+                        'storage-is-db-warning',
+                        'warning'
+                    );
+                    $options['storage_is_db'] = $current_storage_is_db;
+                }
+            }
+        }
+
+        // catch Bulk index action
         if (isset($options['force_cleanup'])) {
             if ($this->isIndexing()) {
                 self::settingNotice(
@@ -337,6 +352,23 @@ class Admin extends Options
         return $file_size;
     }
 
+    public function human2Byte($value)
+    {
+        $aUnits = array('B' => 0, 'KB' => 1, 'MB' => 2, 'GB' => 3, 'TB' => 4, 'PB' => 5, 'EB' => 6, 'ZB' => 7, 'YB' => 8);
+        $sUnit = strtoupper(trim(substr($value, -2)));
+        if (intval($sUnit) !== 0) {
+            $sUnit = 'B';
+        }
+        if (!in_array($sUnit, array_keys($aUnits))) {
+            return false;
+        }
+        $iUnits = trim(substr($value, 0, strlen($value) - 2));
+        if (!intval($iUnits) == $iUnits) {
+            return false;
+        }
+        return $iUnits * pow(1024, $aUnits[$sUnit]);
+    }
+
     /**
      * Utility:
      * Generate a non-unique random string
@@ -472,7 +504,6 @@ class Admin extends Options
         $total_items_loose_buffer = $total_items - $buffer_total_requests;
         $total_items = $total_items + $buffer_total_requests;
 
-        $stats = $this->getStats();
         $total_sent = (int)$stats['total_stored_requests']
             + (int)$stats['total_bulk_requests']
             + (int)$stats['total_large_requests'];
@@ -486,7 +517,7 @@ class Admin extends Options
 
         $result = (($total_items_loose_buffer <= $totals) && ($totals <= $total_items));
 
-        $this->message('Indexing ' . ($result ? 'completed successfully' : 'DID NOT complete'), $stats);
+        $this->message('Indexing ' . ($result ? 'completed successfully' : 'DID NOT complete. The buffer-range was out of scope.'), $stats);
 
         return $result;
     }

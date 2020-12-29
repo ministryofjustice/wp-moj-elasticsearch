@@ -60,12 +60,10 @@ class Index extends Page
         $this->admin = $settings->admin;
         $this->settings = $settings;
 
-        // smaller server on dev
-        if ($this->admin->env === 'development') {
-            $this->settings->payload_min = 6000000;
-            $this->settings->payload_max = 8900000;
-            $this->settings->payload_ep_max = 9900000;
-        }
+        $payloads = $this->payloadSizes();
+        $this->settings->payload_min = $payloads['min'];
+        $this->settings->payload_max = $payloads['max'];
+        $this->settings->payload_ep_max = $payloads['es_max'];
 
         $this->index_name_current = get_option('_moj_es_index_name');
 
@@ -542,10 +540,6 @@ class Index extends Page
         $this->admin->message('Removed the CRON process lock option: moj_es_cleanup_process_running', $stats);
 
         // set active to false
-        delete_option('_moj_es_bulk_index_active');
-        $this->admin->message('Removed the index ACTIVE option: _moj_es_bulk_index_active', $stats);
-
-        // set active to false
         delete_option('_moj_es_index_total_items');
         $this->admin->message('Removed the TOTAL ITEMS option: _moj_es_index_total_items', $stats);
 
@@ -575,5 +569,26 @@ class Index extends Page
     {
         echo json_encode($this->settings->indexStatisticsAjax());
         exit;
+    }
+
+    public function payloadSizes()
+    {
+        $options = $this->admin->options();
+        $payload = $options['max_payload'] ?? $this->settings->payload_ep_max;
+        $payload_size = $options['max_payload_size'] ?? 'B';
+
+        $ep_max = round((98 / 100) * $this->admin->human2Byte($payload . $payload_size));
+        $max = round((80 / 100) * $ep_max);
+
+        // 25MB in bytes (maximum file build)
+        $max_25 = $this->admin->human2Byte('30MB');
+        $max = ($max > $max_25 ? $max_25 : $max);
+
+        // return size in bytes format
+        return [
+            'es_max' => $ep_max,
+            'max' => $max,
+            'min' => round((80 / 100) * $max)
+        ];
     }
 }

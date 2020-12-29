@@ -31,6 +31,9 @@ p > small > strong,
 .moj-es .input {
     min-width: 300px
 }
+.moj-es select {
+    margin-top: -4px;
+}
 
 .moj-es .intro {
     background-color: #2c5d94;
