@@ -50,6 +50,10 @@ class Index extends Page
      * @var IndexSettings
      */
     private $settings;
+    /**
+     * @var string
+     */
+    private $bulk_index_body;
 
     public function __construct(IndexSettings $settings, Alias $alias)
     {
@@ -66,6 +70,8 @@ class Index extends Page
         $this->settings->payload_ep_max = $payloads['es_max'];
 
         $this->index_name_current = get_option('_moj_es_index_name');
+
+        $this->bulk_index_body = fopen("php://memory", "r+");
 
         // old clean up check
         $this->cleanupIndexingCheck();
@@ -264,13 +270,17 @@ class Index extends Page
     {
         $stats = $this->admin->getStats();
         $body_new_size = mb_strlen($body, 'UTF-8');
-        $body_stored_size = 0;
 
+        /*
+        $body_stored_size = 0;
         $cached_body_path = $this->admin->importLocation() . 'moj-bulk-index-body.json';
         clearstatcache(true, $cached_body_path);
         if (file_exists($cached_body_path)) {
             $body_stored_size = filesize($cached_body_path);
         }
+        */
+
+        $body_stored_size = mb_strlen($this->getBody(), 'UTF-8');
 
         // payload maybe too big?
         if ($body_stored_size + $body_new_size > $this->settings->payload_max) {
@@ -278,7 +288,7 @@ class Index extends Page
         }
 
         // add body to bodies
-        $this->writeBodyToFile($body);
+        $this->writeBodyToMemory($body);
 
         $stats['bulk_body_size'] = $this->admin->humanFileSize($body_stored_size + $body_new_size);
 
@@ -317,6 +327,36 @@ class Index extends Page
     }
 
     /**
+     * Append a string to the end of a file, or false on failure
+     * @param string $body
+     * @return false|int
+     */
+    public function writeBodyToMemory(string $body)
+    {
+        if (!$this->bulk_index_body) {
+            $this->bulk_index_body = fopen("php://memory", "r+");
+        }
+
+        return fputs($this->bulk_index_body, trim($body) . "\n");
+    }
+
+    private function getBody()
+    {
+        if (!$this->bulk_index_body) {
+            $this->bulk_index_body = fopen("php://memory", "r+");
+            return '';
+        }
+
+        rewind($this->bulk_index_body);
+        return stream_get_contents($this->bulk_index_body);
+    }
+
+    private function clearBody()
+    {
+        fclose($this->bulk_index_body);
+    }
+
+    /**
      * Make a bulk request to Elasticsearch and return the response, or WP_Error on failure
      * Before this method is called, we tell EP not to make the request. By doing this we intercept the
      * normal flow of indexing and make the request here. This allows us to collect and send 'size orientated' payloads.
@@ -334,8 +374,9 @@ class Index extends Page
     public function requestIntercept($request, $query, $args, $failures, &$message_stats = [])
     {
         $stats = $this->admin->getStats();
-        $body_file = $this->admin->importLocation() . 'moj-bulk-index-body.json';
-        $body = file_get_contents($body_file);
+        // $body_file = $this->admin->importLocation() . 'moj-bulk-index-body.json';
+        // $body = file_get_contents($body_file);
+        $body = $this->getBody();
         if (!$body) {
             if ($request === 'doing-cleanup') {
                 $this->admin->message('The index body could not be accessed', $message_stats);
@@ -345,7 +386,7 @@ class Index extends Page
         $args['timeout'] = 120; // for all requests
 
         if ($request === 'doing-cleanup') {
-            $this->admin->message('Executing <small><pre>wp_remote_request()</pre></small>', $message_stats);
+            $this->admin->message('Executing <small><code>wp_remote_request()</code></small>', $message_stats);
         }
 
         // send payload
@@ -364,7 +405,8 @@ class Index extends Page
             $this->admin->message('Last index body has been sent!', $message_stats);
         }
 
-        unlink($body_file);
+        // unlink($body_file);
+        $this->clearBody();
 
         if ($request === 'doing-cleanup') {
             $this->admin->message('Index body file has been emptied ready for next run.', $message_stats);
@@ -470,66 +512,70 @@ class Index extends Page
             $this->endCleanup($stats);
         }
 
-        $file_location = $this->admin->importLocation() . 'moj-bulk-index-body.json';
-        $this->admin->message('CHECK: Getting last index body from ' . $file_location, $stats);
+        // $file_location = $this->admin->importLocation() . 'moj-bulk-index-body.json';
+        $body_text = $this->getBody();
+        $this->admin->message('CHECK: Getting last index body from _moj_es_bulk_index_body', $stats);
 
-        clearstatcache(true, $file_location);
-        if (file_exists($file_location)) {
-            $this->admin->message('CHECK: The index body file exists', $stats);
-            $file_size = filesize($file_location);
-            $this->admin->message('CHECK: The file size is ' . $this->admin->humanFileSize($file_size), $stats);
+        // clearstatcache(true, $body_location);
+        // if (file_exists($body_location)) {
+        // $this->admin->message('CHECK: The index body file exists', $stats);
+        // $file_size = filesize($body_location);
 
-            if ($file_size > 0) {
-                // begin cleaning
-                $cleanup_start = time();
-                update_option('moj_es_cleanup_process_running', $cleanup_start);
-                $this->admin->message(
-                    '<strong style="color: #008000">Checks have PASSED.</strong> Cleaning started at <strong>' . date('H:i:s (d:m:y)', $cleanup_start) . '</strong>',
-                    $stats
-                );
+        $body_text_size = mb_strlen($body_text, 'UTF-8');
 
-                // send last batch of posts to index
-                $url = $stats['last_url'] ?? null;
-                $args = $stats['last_args'] ?? null;
+        $this->admin->message('CHECK: The body size is ' . $this->admin->humanFileSize($body_text_size), $stats);
 
-                if (!$url || !$args) {
-                    $message = 'Cleanup cannot run. URL or ARGS not available in stats array.';
-                    $this->admin->message($message, $stats);
-                    trigger_error($message);
-                }
+        if ($body_text_size > 0) {
+            // begin cleaning
+            $cleanup_start = time();
+            update_option('moj_es_cleanup_process_running', $cleanup_start);
+            $this->admin->message(
+                '<strong style="color: #008000">Checks have PASSED.</strong> Cleaning started at <strong>' . date('H:i:s (d:m:y)', $cleanup_start) . '</strong>',
+                $stats
+            );
 
-                $this->admin->message('We have URL and ARGs. Moving to send the last request...', $stats);
+            // send last batch of posts to index
+            $url = $stats['last_url'] ?? null;
+            $args = $stats['last_args'] ?? null;
 
-                // local function ensure object is array
-                $toArray = function ($x) use (&$toArray) {
-                    return is_scalar($x) ? $x : array_map($toArray, (array)$x);
-                };
-
-                $response = $this->requestIntercept('doing-cleanup', ['url' => $url], $toArray($args), null, $stats);
-                if (is_wp_error($response)) {
-                    trigger_error($response->get_error_message(), E_USER_ERROR);
-                }
-
-                $this->admin->message(
-                    'Done, the request was sent successfully to ES... attempting to begin polling for completion.',
-                    $stats
-                );
-
-                // Poll for completion
-                try {
-                    $this->alias->pollForCompletion($stats);
-                } catch (Exception $e) {
-                    trigger_error('Exception: Could not initialise pollForCompletion. ' . $e->getMessage());
-                    $this->admin->message(
-                        'Exception: Could not initialise pollForCompletion. ' . $e->getMessage(),
-                        $stats
-                    );
-                }
-
-                $this->endCleanup($stats);
-                return true;
+            if (!$url || !$args) {
+                $message = 'Cleanup cannot run. URL or ARGS not available in stats array.';
+                $this->admin->message($message, $stats);
+                trigger_error($message);
             }
+
+            $this->admin->message('We have URL and ARGs. Moving to send the last request...', $stats);
+
+            // local function ensure object is array
+            $toArray = function ($x) use (&$toArray) {
+                return is_scalar($x) ? $x : array_map($toArray, (array)$x);
+            };
+
+            $response = $this->requestIntercept('doing-cleanup', ['url' => $url], $toArray($args), null, $stats);
+            if (is_wp_error($response)) {
+                trigger_error($response->get_error_message(), E_USER_ERROR);
+            }
+
+            $this->admin->message(
+                'Done, the request was sent successfully to ES... attempting to begin polling for completion.',
+                $stats
+            );
+
+            // Poll for completion
+            try {
+                $this->alias->pollForCompletion($stats);
+            } catch (Exception $e) {
+                trigger_error('Exception: Could not initialise pollForCompletion. ' . $e->getMessage());
+                $this->admin->message(
+                    'Exception: Could not initialise pollForCompletion. ' . $e->getMessage(),
+                    $stats
+                );
+            }
+
+            $this->endCleanup($stats);
+            return true;
         }
+        // }
 
         $this->admin->message('The index body file DOES NOT exist', $stats);
         $this->admin->message('Clean up process DID NOT successfully complete on this occasion.', $stats);
@@ -559,6 +605,10 @@ class Index extends Page
         // set active to false
         delete_option('_moj_es_index_total_items');
         $this->admin->message('Removed the TOTAL ITEMS option: _moj_es_index_total_items', $stats);
+
+        // deleted the bulk body option
+        delete_option('_moj_es_bulk_index_body');
+        $this->admin->message('Removed the BULK INDEX BODY option: _moj_es_bulk_index_body', $stats);
 
         // remove the force stop transient
         delete_transient('moj_es_index_force_stopped');

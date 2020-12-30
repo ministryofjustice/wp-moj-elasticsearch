@@ -32,7 +32,8 @@ use MOJElasticSearch\ElasticPressHooks;
 use MOJElasticSearch\Index;
 use MOJElasticSearch\Query;
 use MOJElasticSearch\ManageData;
-use MOJElasticSearch\SignAmazonEsRequests;
+use MOJElasticSearch\AWS\Lambda;
+use MOJElasticSearch\AWS\SignAmazonEsRequests;
 
 // settings
 use MOJElasticSearch\Settings\IndexSettings;
@@ -43,6 +44,7 @@ if ($moj_es_auth->ok) {
     $moj_es_alias = new Alias($moj_es_admin);
     new ElasticPressHooks($moj_es_alias);
     $moj_es_settings = new IndexSettings($moj_es_admin, $moj_es_alias);
+    new Lambda($moj_es_admin);
     new Options;
     new Page;
     new SignAmazonEsRequests;

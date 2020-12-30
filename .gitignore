@@ -2,6 +2,8 @@
 composer.phar
 /vendor/
 
+# Application
+bin/responses/*
 
 # Common configs
 

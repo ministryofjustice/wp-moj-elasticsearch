@@ -1,10 +1,11 @@
 <?php
 
-namespace MOJElasticSearch;
+namespace MOJElasticSearch\AWS;
 
 use Aws\Signature\SignatureV4;
 use Aws\Credentials\Credentials;
 use GuzzleHttp\Psr7\Request;
+use MOJElasticSearch\Debug;
 
 class SignAmazonEsRequests
 {
