@@ -44,7 +44,6 @@ if ($moj_es_auth->ok) {
     $moj_es_alias = new Alias($moj_es_admin);
     new ElasticPressHooks($moj_es_alias);
     $moj_es_settings = new IndexSettings($moj_es_admin, $moj_es_alias);
-    new Lambda($moj_es_admin);
     new Options;
     new Page;
     new SignAmazonEsRequests;

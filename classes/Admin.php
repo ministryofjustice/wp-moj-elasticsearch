@@ -8,6 +8,9 @@
 
 namespace MOJElasticSearch;
 
+use Aws\Lambda\LambdaClient;
+use Aws\S3\S3Client;
+
 /**
  * Class Admin
  * @package MOJElasticSearch
@@ -32,9 +35,49 @@ class Admin extends Options
      */
     protected $is_moj_indexing = false;
 
+    /**
+     * @var S3Client
+     */
+    public $s3;
+
+    /**
+     * @var LambdaClient
+     */
+    public $lambda;
+
+    /**
+     * @var string
+     */
+    private $s3_folder;
+
+    /**
+     * @var string
+     */
+    private $s3_bulk_file;
+
+    /**
+     * @var mixed
+     */
+    private $s3_bucket;
+
     public function __construct()
     {
         $this->env = env('WP_ENV') ?: 'production';
+
+        $this->s3 = new S3Client([
+            'version' => 'latest',
+            'region'  => 'eu-west-2'
+        ]);
+
+        $this->s3_folder = 'moj-es';
+        $this->s3_bulk_file = 'bulk-body.json';
+        $this->s3_bucket = env('AWS_S3_BUCKET');
+
+        $this->lambda = new LambdaClient([
+            'version' => 'latest',
+            'region'  => 'eu-west-2'
+        ]);
+
         parent::__construct();
 
         $this->hooks();
@@ -132,7 +175,21 @@ class Admin extends Options
                     'warning'
                 );
                 unset($options['force_cleanup']);
-                return $options;
+            }
+        }
+
+        // catch Bulk index action
+        if (isset($options['process_storage'])) {
+            $current_process_storage = $this->options()['process_storage'] ?? '';
+            if ($current_process_storage !== $options['process_storage']) {
+                if ($this->isIndexing()) {
+                    self::settingNotice(
+                        'The process storage value cannot be changed while an index job is running.',
+                        'process-storage-warning',
+                        'warning'
+                    );
+                    $options['process_storage'] = $current_process_storage;
+                }
             }
         }
 
@@ -527,5 +584,15 @@ class Admin extends Options
         );
 
         return $result;
+    }
+
+    public function getS3Bucket()
+    {
+        return $this->s3_bucket;
+    }
+
+    public function getS3Key()
+    {
+        return $this->s3_folder . '/' . $this->s3_bulk_file;
     }
 }

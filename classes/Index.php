@@ -2,6 +2,8 @@
 
 namespace MOJElasticSearch;
 
+use Aws\Lambda\Exception\LambdaException;
+use Aws\S3\Exception\S3Exception;
 use Exception;
 use WP_Error;
 use MOJElasticSearch\Settings\Page;
@@ -54,6 +56,11 @@ class Index extends Page
      * @var string
      */
     private $bulk_index_body;
+    private $index_storage;
+    /**
+     * @var array
+     */
+    private $payloads;
 
     public function __construct(IndexSettings $settings, Alias $alias)
     {
@@ -64,10 +71,10 @@ class Index extends Page
         $this->admin = $settings->admin;
         $this->settings = $settings;
 
-        $payloads = $this->payloadSizes();
-        $this->settings->payload_min = $payloads['min'];
-        $this->settings->payload_max = $payloads['max'];
-        $this->settings->payload_ep_max = $payloads['es_max'];
+        $this->payloads = $this->payloadSizes();
+        $this->settings->payload_min = $this->payloads['min'];
+        $this->settings->payload_max = $this->payloads['max'];
+        $this->settings->payload_ep_max = $this->payloads['es_max'];
 
         $this->index_name_current = get_option('_moj_es_index_name');
 
@@ -271,32 +278,34 @@ class Index extends Page
         $stats = $this->admin->getStats();
         $body_new_size = mb_strlen($body, 'UTF-8');
 
-        /*
-        $body_stored_size = 0;
-        $cached_body_path = $this->admin->importLocation() . 'moj-bulk-index-body.json';
-        clearstatcache(true, $cached_body_path);
-        if (file_exists($cached_body_path)) {
-            $body_stored_size = filesize($cached_body_path);
-        }
-        */
-
-        $body_stored_size = mb_strlen($this->getBody(), 'UTF-8');
-
         // payload maybe too big?
-        if ($body_stored_size + $body_new_size > $this->settings->payload_max) {
+        if ($stats['bulk_body_size_bytes'] + $body_new_size > $this->settings->payload_max) {
             return false; // index individual file (normal)
         }
 
-        // add body to bodies
-        $this->writeBodyToMemory($body);
+        // for lambda:
+        $async = false;
+        if ($this->index_storage === 'lambda') {
+            // payload maybe too big?
+            if ($body_new_size > $this->payloads['max_lambda']) {
+                return false; // index individual file (normal)
+            }
+            if ($body_new_size < $this->payloads['max_lambda_async']) {
+                $async = true;
+            }
+        }
 
-        $stats['bulk_body_size'] = $this->admin->humanFileSize($body_stored_size + $body_new_size);
+        // add body to bodies
+        $this->writeBodyToS3($body, $async);
+
+        $stats['bulk_body_size_bytes'] = $stats['bulk_body_size_bytes'] + $body_new_size;
+        $stats['bulk_body_size'] = $this->admin->humanFileSize($stats['bulk_body_size_bytes']);
 
         $this->admin->setStats($stats);
 
         add_filter('ep_intercept_remote_request', [$this, 'interceptTrue']);
 
-        if ($body_stored_size + $body_new_size > $this->settings->payload_min) {
+        if ($stats['bulk_body_size_bytes'] > $this->settings->payload_min) {
             // prepare interception
             add_filter('ep_do_intercept_request', [$this, 'requestIntercept'], 11, 4);
             return true;
@@ -304,56 +313,6 @@ class Index extends Page
 
         add_filter('ep_do_intercept_request', [$this, 'requestInterceptFalsy'], 11, 4);
         return true;
-    }
-
-    /**
-     * Append a string to the end of a file, or false on failure
-     * @param string $body
-     * @return false|int
-     */
-    public function writeBodyToFile(string $body)
-    {
-        $path = $this->admin->importLocation() . 'moj-bulk-index-body.json';
-        $handle = fopen($path, 'a');
-        if ($handle !== false) {
-            fwrite($handle, trim($body) . "\n");
-            while (is_resource($handle)) {
-                fclose($handle);
-            }
-
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * Append a string to the end of a file, or false on failure
-     * @param string $body
-     * @return false|int
-     */
-    public function writeBodyToMemory(string $body)
-    {
-        if (!$this->bulk_index_body) {
-            $this->bulk_index_body = fopen("php://memory", "r+");
-        }
-
-        return fputs($this->bulk_index_body, trim($body) . "\n");
-    }
-
-    private function getBody()
-    {
-        if (!$this->bulk_index_body) {
-            $this->bulk_index_body = fopen("php://memory", "r+");
-            return '';
-        }
-
-        rewind($this->bulk_index_body);
-        return stream_get_contents($this->bulk_index_body);
-    }
-
-    private function clearBody()
-    {
-        fclose($this->bulk_index_body);
     }
 
     /**
@@ -663,11 +622,202 @@ class Index extends Page
         $max_25 = $this->admin->human2Byte('30MB');
         $max = ($max > $max_25 ? $max_25 : $max);
 
-        // return size in bytes format
-        return [
+        $payload_sizes = [
             'es_max' => $ep_max,
             'max' => $max,
             'min' => round((80 / 100) * $max)
         ];
+
+        /**
+         * If using AWS Lambda - acknowledge quotas:
+         * - max payload synchronous = 6MB
+         * - max payload asynchronous = 256KB
+         */
+        if ($this->index_storage === 'lambda') {
+            $payload_sizes['max_lambda'] = $this->admin->human2Byte('6MB');
+            $payload_sizes['max_lambda_async'] = $this->admin->human2Byte('256KB');
+        }
+
+        // return size in bytes format
+        return $payload_sizes;
+    }
+
+    /**
+     * Append a string to the end of a file, or false on failure
+     * @param string $body
+     * @return false|int
+     */
+    public function writeBodyToFile(string $body)
+    {
+        $path = $this->admin->importLocation() . 'moj-bulk-index-body.json';
+        $handle = fopen($path, 'a');
+        if ($handle !== false) {
+            fwrite($handle, trim($body) . "\n");
+            while (is_resource($handle)) {
+                fclose($handle);
+            }
+
+            return true;
+        }
+        return false;
+    }
+
+    private function getBodyFromFile()
+    {
+        return file_get_contents($this->admin->importLocation() . 'moj-bulk-index-body.json');
+    }
+
+    /**
+     * Append a string to the end of a string in memory, or false on failure
+     * @param string $body
+     * @return false|int
+     */
+    public function writeBodyToMemory(string $body)
+    {
+        if (!$this->bulk_index_body) {
+            $this->bulk_index_body = fopen("php://memory", "r+");
+        }
+
+        return fputs($this->bulk_index_body, trim($body) . "\n");
+    }
+
+    private function getBodyFromMemory()
+    {
+        if (!$this->bulk_index_body) {
+            $this->bulk_index_body = fopen("php://memory", "r+");
+            return '';
+        }
+
+        rewind($this->bulk_index_body);
+        return stream_get_contents($this->bulk_index_body);
+    }
+
+    private function clearBodyMemory()
+    {
+        fclose($this->bulk_index_body);
+    }
+
+    /**
+     * Append a string to the end of a file in S3, or false on failure
+     * @param string $body
+     * @param bool $async
+     * @return void
+     */
+    public function writeBodyToS3(string $body, bool $async)
+    {
+        $bash_script = false;
+
+        $payload = new \stdClass();
+        $payload->filename = "bulk-body"; // no file extension
+        $payload->folder = "moj-es";
+        $payload->data = trim($body, "\n");
+        $payload->production = false;
+
+        echo $this->debug('THE PAYLOAD', $payload);
+
+        $lambda_function = 'intranet-write-es-to-s3';
+        $payload = addslashes(json_encode($payload));
+        echo $this->debug('THE JSON PAYLOAD', $payload);
+
+        // async has a limited payload size
+        $async_cmd = ($bash_script ? '0' : 'RequestResponse');
+        if ($async) {
+            $async_cmd = ($bash_script ? '1' : 'Event');
+        }
+
+
+        if ((int)`pgrep aws | wc -l` > 30) {
+            sleep(3);
+        }
+
+        //$payload = $payload;
+        `aws lambda invoke \
+            --cli-binary-format raw-in-base64-out \
+            --function-name {$lambda_function} \
+            --payload "{$payload}" \
+            --invocation-type {$async_cmd}\
+            store-data-size.json`;
+
+        //`aws lambda invoke --function-name "{$lambda_function}" --payload "{$payload}" --cli-binary-format raw-in-base64-out store-data-size.json > /dev/null 2>&1 & echo $!;`;
+
+        //exec(MOJ_ES_DIR . '/bin/store-data.sh "' . $lambda_function . '" "' . $payload . '" ' . $async_cmd . ' > /dev/null 2>&1 & echo $!;');
+        usleep(80000);
+    }
+
+    /**
+     * @return string
+     */
+    private function getBodyFromS3()
+    {
+        // TODO: there is another lambda function that gets all the files and consolidates in to one = bulk-body.json
+        try {
+            // Get the bulk file for sending to ES.
+            $result = $this->admin->s3->getObject([
+                'Bucket' => $this->admin->getS3Bucket(),
+                'Key' => $this->admin->getS3Key()
+            ]);
+
+            return $result['Body'];
+        } catch (S3Exception $e) {
+            trigger_error($e->getMessage() . PHP_EOL);
+        }
+
+        return '';
+    }
+
+    private function clearBodyS3()
+    {
+        // TODO: delete the file from s3
+    }
+
+    private function writeBody($body, $async = false)
+    {
+        if ($this->index_storage === 'lambda') {
+            $this->writeBodyToS3($body, $async);
+        }
+
+        if ($this->index_storage === 'memory') {
+            $this->writeBodyToMemory($body);
+        }
+
+        return $this->writeBodyToFile($body);
+    }
+
+    private function getBody()
+    {
+        $process_storage = $this->admin->options()['process_storage'] ?? null;
+        if ($process_storage === 'lambda') {
+            return $this->getBodyFromS3();
+        }
+
+        if ($process_storage === 'memory') {
+            return $this->getBodyFromMemory();
+        }
+
+        if ($process_storage === 'file') {
+            return $this->getBodyFromFile();
+        }
+
+        return false;
+    }
+
+    private function clearBody()
+    {
+        $process_storage = $this->admin->options()['process_storage'] ?? null;
+        if ($process_storage === 'lambda') {
+            return $this->clearBodyS3();
+        }
+
+        if ($process_storage === 'memory') {
+            $this->clearBodyMemory();
+        }
+
+        if ($process_storage === 'file') {
+            $filepath = $this->admin->importLocation() . 'moj-bulk-index-body.json';
+            clearstatcache(true, $filepath);
+            if (file_exists($filepath)) {
+                unlink($filepath);
+            }
+        }
     }
 }

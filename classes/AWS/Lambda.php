@@ -30,9 +30,9 @@ class Lambda extends Page
         $this->lf_name = $this->getFunctionName();
     }
 
-    public function create()
+    public function make()
     {
-        // TODO this function should create the lambda function in AWS
+        // TODO: this method should create the lambda function in AWS
         // include an administration page in the dashboard for this
         /**
          * https://docs.aws.amazon.com/cli/latest/reference/lambda/create-function.html#synopsis
@@ -40,11 +40,16 @@ class Lambda extends Page
          */
     }
 
+    public function makeRole()
+    {
+
+    }
+
     private function getFunctionName()
     {
-        $base_name = 'write-to-s3';
+        $base_name = '-es-write-to-s3';
         $server = env("SERVER_NAME");
 
-        return str_replace(['.', 'docker', 'gov', 'uk', 'org', 'gov.uk'], ['-', ''], $server) . '-' . $base_name;
+        return str_replace(['.', 'docker', 'gov', 'uk', 'org', 'gov.uk'], ['-', ''], $server) . $base_name;
     }
 }

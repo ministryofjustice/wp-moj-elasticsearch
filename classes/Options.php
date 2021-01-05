@@ -54,6 +54,7 @@ class Options
         'total_stored_requests' => 0,
         'total_large_requests' => 0,
         'bulk_body_size' => 0,
+        'bulk_body_size_bytes' => 0, // isn't used on front end display
         'large_files' => [],
         'messages' => [],
         'cleanup_loops' => 0,

@@ -3,6 +3,7 @@
     "description": "WP interface for managing elastic search",
     "type": "wordpress-muplugin",
     "require": {
+        "aws/aws-sdk-php": "^3.171",
         "composer/installers": "^1.0"
     },
     "authors": [

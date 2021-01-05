@@ -83,6 +83,7 @@ class IndexSettings extends Page
         $fields_index_management = [
             'storage_is_db' => [$this, 'storageIsDB'],
             'max_payload' => [$this, 'maxPayloadSize'],
+            'process_storage' => [$this, 'indexStorageTypes'],
             'refresh_rate' => [$this, 'pollingDelayField'],
             'force_wp_query' => [$this, 'forceWPQuery'],
             'show_cleanup_messages' => [$this, 'showCleanupMessages'],
@@ -367,6 +368,21 @@ class IndexSettings extends Page
             can continue without interruption.<br><br>Displayed in stats above, you will see a value against the bulk
             body size. This value is a percentage of the max payload amount. Please note that it will not be higher than
             <code>24MB</code>. This is set to improve server load when opening and writing indexables to file.</p>
+        <?php
+    }
+
+    public function indexStorageTypes()
+    {
+        $option = $this->options();
+        $key = 'process_storage';
+        ?>
+        <select name="<?= $this->optionName() ?>[<?= $key ?>]">
+            <option value="file" <?php selected($option[$key], "file"); ?>>Local File System</option>
+            <option value="memory" <?php selected($option[$key], "memory"); ?>>Store in Memory</option>
+            <option value="lambda" <?php selected($option[$key], "lambda"); ?>>AWS Lambda Service</option>
+        </select>
+        <p>Define the storage method while processing bulk index data.</p>
+        <p class="feature-desc">- add more information about the options here.</p>
         <?php
     }
 
