@@ -290,6 +290,7 @@ class Index extends Page
             if ($body_new_size > $this->payloads['max_lambda']) {
                 return false; // index individual file (normal)
             }
+
             if ($body_new_size < $this->payloads['max_lambda_async']) {
                 $async = true;
             }
@@ -705,7 +706,7 @@ class Index extends Page
      */
     public function writeBodyToS3(string $body, bool $async)
     {
-        $bash_script = false;
+        $bash_script = true;
 
         $payload = new \stdClass();
         $payload->filename = "bulk-body"; // no file extension
