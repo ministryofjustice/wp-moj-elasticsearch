@@ -713,11 +713,8 @@ class Index extends Page
         $payload->data = trim($body, "\n");
         $payload->production = false;
 
-        echo $this->debug('THE PAYLOAD', $payload);
-
         $lambda_function = 'intranet-write-es-to-s3';
         $payload = addslashes(json_encode($payload));
-        echo $this->debug('THE JSON PAYLOAD', $payload);
 
         // async has a limited payload size
         $async_cmd = ($bash_script ? '0' : 'RequestResponse');
@@ -725,22 +722,30 @@ class Index extends Page
             $async_cmd = ($bash_script ? '1' : 'Event');
         }
 
-
+        // checks how many running aws processes there are
+        // will sleep for nth seconds to allow background processes to complete
+        // frees up the OS to perform other tasks
         if ((int)`pgrep aws | wc -l` > 30) {
             sleep(3);
         }
 
-        //$payload = $payload;
-        `aws lambda invoke \
+        // the cli request
+        /*`aws lambda invoke \
             --cli-binary-format raw-in-base64-out \
             --function-name {$lambda_function} \
             --payload "{$payload}" \
             --invocation-type {$async_cmd}\
-            store-data-size.json`;
+            store-data-size.json > /dev/null 2>&1 & echo $!;`;*/
 
-        //`aws lambda invoke --function-name "{$lambda_function}" --payload "{$payload}" --cli-binary-format raw-in-base64-out store-data-size.json > /dev/null 2>&1 & echo $!;`;
+        // the SDK request <- less problematic
+        exec(
+            MOJ_ES_DIR . '/bin/store-data.sh "' .
+            $lambda_function . '" "' .
+            $payload . '" ' .
+            $async_cmd . ' > /dev/null 2>&1 & echo $!;'
+        );
 
-        //exec(MOJ_ES_DIR . '/bin/store-data.sh "' . $lambda_function . '" "' . $payload . '" ' . $async_cmd . ' > /dev/null 2>&1 & echo $!;');
+        // the throttle
         usleep(80000);
     }
 
