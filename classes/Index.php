@@ -523,7 +523,12 @@ class Index extends Page
             return false;
         }
 
-        $this->admin->message('The index body file was not found on attempt number ' . ($stats['cleanup_loops'] + 1) . '.', $stats);
+        $this->admin->message(
+            'The index body file was not found on attempt number <strong style="color: #cc0000">'
+            . ($stats['cleanup_loops'] + 1)
+            . '</strong>.',
+            $stats
+        );
 
         if ($stats['cleanup_loops'] >= $this->options()['cleanup_loops'] ?? 10) {
             $fail_message = 'Cleanup process did not complete successfully on this occasion.';
@@ -531,6 +536,7 @@ class Index extends Page
                 '<strong style="color: #cc0000">' . $fail_message . '</strong>',
                 $stats
             );
+            $stats['cleanup_loops'] = 0;
             trigger_error($fail_message);
             $this->endCleanup($stats);
             return false;
