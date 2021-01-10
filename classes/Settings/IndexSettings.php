@@ -81,12 +81,12 @@ class IndexSettings extends Page
         ];
 
         $fields_index_management = [
-            'storage_is_db' => [$this, 'storageIsDB'],
             'max_payload' => [$this, 'maxPayloadSize'],
             'refresh_rate' => [$this, 'pollingDelayField'],
             'force_wp_query' => [$this, 'forceWPQuery'],
             'show_cleanup_messages' => [$this, 'showCleanupMessages'],
             'force_cleanup' => [$this, 'forceCleanup'],
+            'cleanup_loops' => [$this, 'cleanupLoops'],
             'buffer_total_requests' => [$this, 'bufferTotalRequests']
         ];
 
@@ -220,23 +220,6 @@ class IndexSettings extends Page
         <?php
     }
 
-    public function storageIsDB()
-    {
-        $option = $this->options();
-        $storage_is_db = $option['storage_is_db'] ?? null;
-        ?>
-        <input
-            type="checkbox"
-            value="1"
-            name="<?= $this->optionName() ?>[storage_is_db]"
-            <?php checked('1', $storage_is_db) ?>
-        />
-        <small id="storage_indicator"
-               class="green"><?= ($this->stats_use_db ? 'Sure, store stats in DB' : 'No, write to disc') ?></small>
-        <p>Should we store index stats in the DB or write them to disc?</p>
-        <?php
-    }
-
     public function forceCleanup()
     {
         $option = $this->options();
@@ -321,13 +304,29 @@ class IndexSettings extends Page
     {
         $option = $this->options();
         $key = 'refresh_rate';
+        $default = 3;
         ?>
-        <input type="text" value="<?= $option[$key] ?? 3 ?>" name="<?= $this->optionName() ?>[<?= $key ?>]"/>
+        <input type="text" value="<?= $option[$key] ?? $default ?>" name="<?= $this->optionName() ?>[<?= $key ?>]"
+               placeholder="<?= $default ?>"/>
         <small>Seconds</small>
         <p>This setting affects the amount of time Latest Stats (above) is refreshed.</p>
         <script>
-            var mojESPollingTime = <?= $option[$key] ?? 3 ?>
+            var mojESPollingTime = <?= $option[$key] ?? $default ?>
         </script>
+        <?php
+    }
+
+    public function cleanupLoops()
+    {
+        $option = $this->options();
+        $key = 'cleanup_loops';
+        $default = 10;
+        ?>
+        <input type="text" value="<?= $option[$key] ?? $default ?>" name="<?= $this->optionName() ?>[<?= $key ?>]"
+               placeholder="<?= $default ?>"/>
+        <small>Max attempts</small>
+        <p>This setting controls how many times our cleanup process runs unsuccessfully.<br>
+        Default max is <?= $default ?></p>
         <?php
     }
 
@@ -335,8 +334,10 @@ class IndexSettings extends Page
     {
         $option = $this->options();
         $key = 'buffer_total_requests';
+        $default = 20;
         ?>
-        <input type="text" value="<?= $option[$key] ?? 20 ?>" name="<?= $this->optionName() ?>[<?= $key ?>]"/>
+        <input type="text" value="<?= $option[$key] ?? $default ?>" name="<?= $this->optionName() ?>[<?= $key ?>]"
+               placeholder="<?= $default ?>"/>
         <p>This buffer is necessary and acts as a confidence rating. It helps decide whether a new index should be
             activated and applied to the alias.</p>
         <p class="feature-desc">We check the total number of indexed items against the total available indexables.
@@ -428,7 +429,7 @@ class IndexSettings extends Page
         $total_files = $requests = '';
 
         // define keys to omit from display
-        $private_keys = ['last_url', 'last_args', 'force_stop', 'messages', 'cleanup_loops'];
+        $private_keys = ['last_url', 'last_args', 'force_stop', 'messages', 'cleanup_loops', 'bulk_body_size_bytes'];
         $stats = $this->admin->getStats();
         foreach ($stats as $key => $stat) {
             if (in_array($key, $private_keys)) {

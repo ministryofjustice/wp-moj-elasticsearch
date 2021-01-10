@@ -263,30 +263,24 @@ class Index extends Page
     public function sendBulk($body)
     {
         $stats = $this->admin->getStats();
-        $body_new_size = mb_strlen($body, 'UTF-8');
-        $body_stored_size = 0;
-
-        $cached_body_path = $this->admin->importLocation() . 'moj-bulk-index-body.json';
-        clearstatcache(true, $cached_body_path);
-        if (file_exists($cached_body_path)) {
-            $body_stored_size = filesize($cached_body_path);
-        }
+        $size = mb_strlen($body, 'UTF-8');
 
         // payload maybe too big?
-        if ($body_stored_size + $body_new_size > $this->settings->payload_max) {
-            return false; // index individual file (normal)
+        if ($stats['bulk_body_size_bytes'] + $size > $this->settings->payload_max) {
+            return false; // send individual file for normal indexing
         }
 
         // add body to bodies
         $this->writeBodyToFile($body);
 
-        $stats['bulk_body_size'] = $this->admin->humanFileSize($body_stored_size + $body_new_size);
+        $stats['bulk_body_size_bytes'] = $stats['bulk_body_size_bytes'] + $size; // raw bytes
+        $stats['bulk_body_size'] = $this->admin->humanFileSize($stats['bulk_body_size_bytes']);
 
         $this->admin->setStats($stats);
 
         add_filter('ep_intercept_remote_request', [$this, 'interceptTrue']);
 
-        if ($body_stored_size + $body_new_size > $this->settings->payload_min) {
+        if ($stats['bulk_body_size_bytes'] > $this->settings->payload_min) {
             // prepare interception
             add_filter('ep_do_intercept_request', [$this, 'requestIntercept'], 11, 4);
             return true;
@@ -371,6 +365,7 @@ class Index extends Page
         }
 
         $stats['bulk_body_size'] = 0;
+        $stats['bulk_body_size_bytes'] = 0;
         $stats['total_bulk_requests'] = $stats['total_bulk_requests'] ?? 0;
         $stats['total_bulk_requests']++;
         $this->admin->setStats($stats); // next, save request params
@@ -437,8 +432,8 @@ class Index extends Page
     }
 
     /**
-     * Makes sure there's no data left in the bulk file once indexing has completed
-     * @return bool
+     * Makes sure there's no data left in the bulk file once indexing has complete.
+     *
      */
     public function cleanUpIndexing()
     {
@@ -447,33 +442,17 @@ class Index extends Page
         }
 
         $stats = $this->admin->getStats();
-        $this->admin->messageReset($stats);
-
-        // process lock sanity check
-        if ($stats['cleanup_loops'] > 2) {
-            if (get_option('moj_es_cleanup_process_running')) {
-                $this->admin->message('Cleanup is stuck. Deleting the cleanup process lock and trying again.', $stats);
-                delete_option('moj_es_cleanup_process_running');
-                $stats['cleanup_loops'] = 0;
-            }
-        }
 
         // bail if process has started
-        if (get_option('moj_es_cleanup_process_running')) {
-            $stats['cleanup_loops']++;
-            return false;
-        }
-
-
-        if ($stats['cleanup_loops'] > 3) {
-            $this->admin->message('Cleanup is stuck. Quitting now to prevent continuous loops...', $stats);
-            $this->endCleanup($stats);
+        // when using a load balancer, it is likely that a successful process could have begun
+        if ($start_time = get_option('moj_es_cleanup_process_running')) {
+            $this->admin->message('A successful process is already running; the option <strong style="color: #008000">moj_es_cleanup_process_running</strong> is set to true', $stats);
+            return $start_time;
         }
 
         $file_location = $this->admin->importLocation() . 'moj-bulk-index-body.json';
         $this->admin->message('CHECK: Getting last index body from ' . $file_location, $stats);
 
-        clearstatcache(true, $file_location);
         if (file_exists($file_location)) {
             $this->admin->message('CHECK: The index body file exists', $stats);
             $file_size = filesize($file_location);
@@ -529,12 +508,36 @@ class Index extends Page
                 $this->endCleanup($stats);
                 return true;
             }
+            $this->admin->message('<strong style="color: #cc0000">This is a fatal error</strong>; there was no data found in the bulk file when cleaning up', $stats);
+            return false;
         }
 
-        $this->admin->message('The index body file DOES NOT exist', $stats);
-        $this->admin->message('Clean up process DID NOT successfully complete on this occasion.', $stats);
+        $this->admin->message('The index body file was not found on attempt number ' . ($stats['cleanup_loops'] + 1) . '.', $stats);
+
+        if ($stats['cleanup_loops'] >= $this->options()['cleanup_loops'] ?? 10) {
+            $fail_message = 'Cleanup process did not complete successfully on this occasion.';
+            $this->admin->message(
+                '<strong style="color: #cc0000">' . $fail_message . '</strong>',
+                $stats
+            );
+            trigger_error($fail_message);
+            $this->endCleanup($stats);
+            return false;
+        }
+
         $stats['cleanup_loops']++;
+        $this->admin->message('<strong style="color: #ae6c00">Trying once more...</strong>', $stats);
         $this->admin->setStats($stats);
+
+        // bulk file wasn't found here - reset the CRON to register another cleanup attempt now
+        // if behind a load balancer the process may fail on multiple attempts, so keep trying
+        $timestamp = wp_next_scheduled('moj_es_cleanup_cron');
+        wp_unschedule_event($timestamp, 'moj_es_cleanup_cron');
+        wp_schedule_event(
+            time(),
+            $this->admin->cronInterval('every_ninety_seconds'),
+            'moj_es_cleanup_cron'
+        );
 
         return null;
     }

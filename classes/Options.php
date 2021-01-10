@@ -54,6 +54,7 @@ class Options
         'total_stored_requests' => 0,
         'total_large_requests' => 0,
         'bulk_body_size' => 0,
+        'bulk_body_size_bytes' => 0, // isn't used on front end display
         'large_files' => [],
         'messages' => [],
         'cleanup_loops' => 0,
@@ -164,7 +165,7 @@ class Options
     }
 
     /**
-     * Get the stats stored in options or from disc
+     * Get the stats stored in options
      * @return array|string|null
      */
     public function getStats()
@@ -173,40 +174,16 @@ class Options
             return $this->moj_bulk_index_stats;
         }
 
-        if ($this->stats_use_db) {
-            return $this->statsDB();
-        }
-
-        $file_path = $this->importLocation() . 'moj-bulk-index-stats.json';
-        // if not present, create the default stats file.
-        clearstatcache(true, $file_path);
-        if (!file_exists($file_path)) {
-            $this->setStats($this->stats_default);
-        }
-
-        // finally, get from the file system
-        return (array)json_decode(file_get_contents($file_path));
+        return $this->statsDB();
     }
 
     public function setStats($es_stats)
     {
+        // update the 'getStats' cache
         $this->moj_bulk_index_stats = $es_stats;
-
-        if ($this->stats_use_db) {
-            update_option('_moj_bulk_index_stats', $es_stats);
-            return $es_stats;
-        }
-
-        // storage is file system
-        $file_path = $this->importLocation() . 'moj-bulk-index-stats.json';
-        $handle = fopen($file_path, 'w');
-        fwrite($handle, json_encode($es_stats));
-        fclose($handle);
-
-        // touch to adjust modification time.
-        touch($file_path);
-
-        return true;
+        // set stats
+        update_option('_moj_bulk_index_stats', $es_stats);
+        return $es_stats;
     }
 
     /**
@@ -214,18 +191,9 @@ class Options
      */
     public function clearStats()
     {
-        if ($this->stats_use_db) {
-            $this->moj_bulk_index_stats = null;
-            return update_option('_moj_bulk_index_stats', $this->stats_default);
-        }
+        $this->moj_bulk_index_stats = null;
+        return update_option('_moj_bulk_index_stats', $this->stats_default);
 
-        $file_path = $this->importLocation() . 'moj-bulk-index-stats.json';
-        clearstatcache(true, $file_path);
-        if (file_exists($file_path)) {
-            unlink($file_path);
-        }
-
-        return true;
     }
 
     /**
