@@ -46,7 +46,6 @@ class Admin extends Options
     public function hooks()
     {
         // MoJ
-        add_action('moj_es_exec_index', [$this, 'scheduleIndexing']);
         add_filter('cron_schedules', [$this, 'addCronIntervals'], 99);
         // style set up
         add_action('admin_init', [$this, 'register']);
