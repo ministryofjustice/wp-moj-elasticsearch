@@ -182,7 +182,7 @@ class Admin extends Options
 
         // check now in case we need to run.
         if ($this->beginBackgroundIndex()) {
-            self::settingNotice('Bulk indexing begun.', 'bulk-warning', 'success');
+            self::settingNotice('Bulk indexing has begun.', 'bulk-warning', 'success');
             return $options;
         }
 

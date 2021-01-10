@@ -5,19 +5,37 @@ jQuery(function ($) {
         // we can use this global object in future for OOP
         submit: {
             button: {
-                show: function () {
+                show: () => {
                     $('.moj-es .submit .button').show()
                 },
-                hide: function () {
+                hide: () => {
                     $('.moj-es .submit .button').hide()
                 },
-                maybeShow: function (tab) {
+                maybeShow: (tab) => {
                     if (tab !== 'moj-es-home') {
                         MOJ.ES.submit.button.show()
                     } else {
                         MOJ.ES.submit.button.hide()
                     }
                 }
+            }
+        },
+        checkbox: {
+            click: (ele, text, colour) =>{
+                $('input[name*=' + ele + ']').on(
+                    'click',
+                    { target: ele, text: text, colour: colour },
+                    MOJ.ES.checkbox.clicked
+                )
+            },
+            clicked: function (event) {
+                let checked = $(this).is(':checked'), text = 'No', colour = 'green'
+                if (checked) {
+                    text = event.data.text
+                    colour = event.data.colour
+                }
+
+                $('#' + event.data.target + '_indicator').removeClass().text(text).addClass(colour)
             }
         }
     }
@@ -31,7 +49,8 @@ jQuery(function ($) {
      * @param value
      * @returns string|boolean false|pathname + query string
      */
-    function mojQString (key, value) {
+    function mojQString(key, value)
+    {
         var params = new URLSearchParams(window.location.search)
 
         if (!value && params.has(key)) {
@@ -52,7 +71,8 @@ jQuery(function ($) {
         return (window.location.pathname + window.location.search)
     }
 
-    function setTab (tab) {
+    function setTab(tab)
+    {
         var tabId, refererPath
 
         if (!tab) {
@@ -101,12 +121,14 @@ jQuery(function ($) {
             setTab()
         }
 
-        function startBulkIndex () {
+        function startBulkIndex()
+        {
             $('.moj-es a.thickbox').hide()
             $('.moj-es button.index_button').show().attr('disabled', null).click()
         }
 
-        function killBulkIndex () {
+        function killBulkIndex()
+        {
             $('.moj-es a.thickbox.kill_index_button').hide()
             $('.moj-es button.kill_index_button').show().attr('disabled', null).click()
         }
@@ -119,7 +141,8 @@ jQuery(function ($) {
         var statInterval = null
         var subStatInterval = null;
         // self-executing function; get latest stats
-        (function get_stats () {
+        (function get_stats()
+        {
             if (!statInterval) {
                 statInterval = setInterval(get_stats, mojESPollingTime * 1000)
             }
@@ -146,45 +169,15 @@ jQuery(function ($) {
 
         $('#wpbody-content > div[id^="setting-error-"]').remove()
 
-        $('input[name*="force_cleanup"]').on('click', function () {
-            let checked = $(this).is(':checked'), text = 'No', colour = 'green';
-            if (checked) {
-                text = 'Yes, force clean up'
-                colour = 'red';
-            }
-            $('#force_cleanup_indicator').removeClass().text(text).addClass(colour);
-        })
-
-        $('input[name*="restart_cleanup"]').on('click', function () {
-            let checked = $(this).is(':checked'), text = 'No', colour = 'green';
-            if (checked) {
-                text = 'Yes, clean up'
-                colour = 'orange';
-            }
-            $('#restart_cleanup_indicator').removeClass().text(text).addClass(colour);
-        })
-
-        $('input[name*="force_wp_query"]').on('click', function () {
-            let checked = $(this).is(':checked'), text = 'No', colour = 'green';
-            if (checked) {
-                text = 'Let\'s do it, force WP Query while indexing'
-                colour = 'red';
-            }
-            $('#force_wp_query_indicator').removeClass().text(text).addClass(colour);
-        })
-
-        $('input[name*="show_cleanup_messages"]').on('click', function () {
-            let checked = $(this).is(':checked'), text = 'No', colour = 'green';
-            if (checked) {
-                text = 'For sure! Display messaging during cleanup'
-                colour = 'orange';
-            }
-            $('#show_cleanup_messages_indicator').removeClass().text(text).addClass(colour);
-        })
+        MOJ.ES.checkbox.click('show_cleanup_messages', 'For sure! Display messaging during cleanup', 'orange')
+        MOJ.ES.checkbox.click('restart_cleanup', 'Yes, clean up', 'orange')
+        MOJ.ES.checkbox.click('force_cleanup', 'Yes, force clean up', 'red')
+        MOJ.ES.checkbox.click('force_wp_query', 'Let\'s do it, force WP Query while indexing', 'red')
     }
 
-    function moj_increment_seconds(element) {
-        var time = $(element).text(),
+    function moj_increment_seconds(element)
+    {
+        let time = $(element).text(),
             timeParts, hours, minutes, seconds
 
         if (time) {
@@ -194,17 +187,17 @@ jQuery(function ($) {
             seconds = Number(timeParts[2].slice(0, -1))
 
             // not past 59
-            seconds = String(seconds === 59 ? '00' : (seconds + 1));
-            minutes = seconds === '00' ? (minutes + 1) : minutes;
-            minutes = String(minutes === 59 ? '00' : minutes);
+            seconds = String(seconds === 59 ? '00' : (seconds + 1))
+            minutes = seconds === '00' ? (minutes + 1) : minutes
+            minutes = String(minutes === 59 ? '00' : minutes)
             if (minutes === '00') {
-                hours = String((hours + 1));
+                hours = String((hours + 1))
             }
 
-            seconds = (seconds.length === 1 ? '0' + seconds : seconds);
-            minutes = (minutes.length === 1 ? '0' + minutes : minutes);
+            seconds = (seconds.length === 1 ? '0' + seconds : seconds)
+            minutes = (minutes.length === 1 ? '0' + minutes : minutes)
 
-            $(element).text(hours + 'h ' + minutes + 'm ' + seconds + 's');
+            $(element).text(hours + 'h ' + minutes + 'm ' + seconds + 's')
         }
     }
 })
@@ -213,7 +206,8 @@ jQuery(function ($) {
  * Generates a unique string in the form of a UUID
  * @returns string UUID
  */
-function uuidv4 () {
+function uuidv4()
+{
     return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(
         /[018]/g,
         c => (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
