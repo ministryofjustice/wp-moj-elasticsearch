@@ -604,8 +604,24 @@ class Index extends Page
     {
         $options = $this->admin->options();
         $stats = $this->admin->getStats();
+        $restart_clean_up = $options['restart_cleanup'] ?? null;
         $force_clean_up = $options['force_cleanup'] ?? null;
-        $this->admin->message('Force cleanup -> can we clean? ' . ($force_clean_up ? 'YES' : 'NO'), $stats);
+
+        if ($restart_clean_up) {
+            if (wp_schedule_event(
+                time(),
+                $this->admin->cronInterval('every_ninety_seconds'),
+                'moj_es_cleanup_cron'
+            )) {
+                $this->admin->message('Cleanup has been scheduled.', $stats);
+            } else {
+                $this->admin->message('Cleanup could not be scheduled.', $stats);
+            }
+
+            $this->admin->updateOption('restart_cleanup', null);
+            $this->admin->setStats($stats);
+            return;
+        }
 
         if ($force_clean_up) {
             $this->admin->messageReset($stats);
@@ -629,9 +645,8 @@ class Index extends Page
             }
             $this->admin->message('Force cleanup -> ' . $cleanup_message, $stats);
             $this->admin->updateOption('force_cleanup', null);
+            $this->admin->setStats($stats);
         }
-
-        $this->admin->setStats($stats);
     }
 
     public function getStatsHTML()

@@ -119,6 +119,15 @@ class Admin extends Options
                 unset($options['force_cleanup']);
                 return $options;
             }
+
+            if (isset($options['restart_cleanup'])) {
+                self::settingNotice(
+                    'Restart Cleanup was cleared because Force Cleanup was set.',
+                    'force-cleanup-warning',
+                    'warning'
+                );
+                unset($options['restart_cleanup']); // remove this - force_cleanup overrides
+            }
         }
 
         // catch Bulk index action ~ kill

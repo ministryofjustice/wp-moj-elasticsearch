@@ -146,17 +146,22 @@ jQuery(function ($) {
 
         $('#wpbody-content > div[id^="setting-error-"]').remove()
 
-        $('input[name*="storage_is_db"]').on('click', function () {
-            $('#storage_indicator').text(($(this).is(':checked') ? 'Sure, store stats in DB' : 'No, write to disc'))
-        })
-
         $('input[name*="force_cleanup"]').on('click', function () {
             let checked = $(this).is(':checked'), text = 'No', colour = 'green';
             if (checked) {
-                text = 'Yes, clean up'
+                text = 'Yes, force clean up'
                 colour = 'red';
             }
             $('#force_cleanup_indicator').removeClass().text(text).addClass(colour);
+        })
+
+        $('input[name*="restart_cleanup"]').on('click', function () {
+            let checked = $(this).is(':checked'), text = 'No', colour = 'green';
+            if (checked) {
+                text = 'Yes, clean up'
+                colour = 'orange';
+            }
+            $('#restart_cleanup_indicator').removeClass().text(text).addClass(colour);
         })
 
         $('input[name*="force_wp_query"]').on('click', function () {

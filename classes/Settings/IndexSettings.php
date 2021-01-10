@@ -84,15 +84,20 @@ class IndexSettings extends Page
             'max_payload' => [$this, 'maxPayloadSize'],
             'refresh_rate' => [$this, 'pollingDelayField'],
             'force_wp_query' => [$this, 'forceWPQuery'],
-            'show_cleanup_messages' => [$this, 'showCleanupMessages'],
-            'force_cleanup' => [$this, 'forceCleanup'],
-            'cleanup_loops' => [$this, 'cleanupLoops'],
             'buffer_total_requests' => [$this, 'bufferTotalRequests']
+        ];
+
+        $fields_index_cleanup = [
+            'show_cleanup_messages' => [$this, 'showCleanupMessages'],
+            'restart_cleanup' => [$this, 'restartCleanup'],
+            'force_cleanup' => [$this, 'forceCleanup'],
+            'cleanup_loops' => [$this, 'cleanupLoops']
         ];
 
         // fill the sections
         Page::$sections[$group] = [
             $this->section([$this, 'indexStatisticsIntro'], $fields_index),
+            $this->section([$this, 'indexCleanupIntro'], $fields_index_cleanup),
             $this->section([$this, 'indexManagementIntro'], $fields_index_management)
         ];
 
@@ -184,6 +189,14 @@ class IndexSettings extends Page
         echo '<div class="intro"><strong>' . $heading . '</strong><br>' . $description . '</div>';
     }
 
+    public function indexCleanupIntro()
+    {
+        $heading = __('Helper options to assist in completing an index', $this->text_domain);
+
+        $description = __('', $this->text_domain);
+        echo '<div class="intro"><strong>' . $heading . '</strong><br>' . $description . '</div>';
+    }
+
     public function indexManagementIntro()
     {
         $heading = __('Manage indexing options', $this->text_domain);
@@ -238,7 +251,29 @@ class IndexSettings extends Page
             name="<?= $this->optionName() ?>[force_cleanup]"
             <?php checked('1', $force_cleanup) ?>
         /> <small id="force_cleanup_indicator" class="<?= $prompt_colour ?>"><?= $prompt_text ?></small>
-        <p>Do we need to clean the indexing process up? This might be needed if Bulk Body Size is greater than 0.</p>
+        <p>Do we need to clean the indexing process up?</p>
+        <?php
+    }
+
+    public function restartCleanup()
+    {
+        $option = $this->options();
+        $restart_cleanup = $option['restart_cleanup'] ?? null;
+        // prompt states
+        $prompt_text = 'No';
+        $prompt_colour = 'green';
+        if ($restart_cleanup) {
+            $prompt_text = 'Yes, clean up';
+            $prompt_colour = 'red';
+        }
+        ?>
+        <input
+            type="checkbox"
+            value="1"
+            name="<?= $this->optionName() ?>[restart_cleanup]"
+            <?php checked('1', $restart_cleanup) ?>
+        /> <small id="restart_cleanup_indicator" class="<?= $prompt_colour ?>"><?= $prompt_text ?></small>
+        <p>Has cleanup finished yet, alias appears to still be waiting?</p>
         <?php
     }
 
