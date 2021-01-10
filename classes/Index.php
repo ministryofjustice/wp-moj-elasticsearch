@@ -433,7 +433,13 @@ class Index extends Page
 
     /**
      * Makes sure there's no data left in the bulk file once indexing has complete.
+     * Responses:
+     * - string = index is currently running
+     * - true   = successful clean up
+     * - false  = fatal failure
+     * - null   = soft fail, will try again
      *
+     * @returns mixed string|bool|null
      */
     public function cleanUpIndexing()
     {
@@ -533,11 +539,24 @@ class Index extends Page
         // if behind a load balancer the process may fail on multiple attempts, so keep trying
         $timestamp = wp_next_scheduled('moj_es_cleanup_cron');
         wp_unschedule_event($timestamp, 'moj_es_cleanup_cron');
-        wp_schedule_event(
+
+        // attempt to restart schedule, return false (fatal error) if we cannot
+        if (!wp_schedule_event(
             time(),
             $this->admin->cronInterval('every_ninety_seconds'),
             'moj_es_cleanup_cron'
-        );
+        )) {
+            sleep(2);
+            // try again
+            if (!wp_schedule_event(
+                time(),
+                $this->admin->cronInterval('every_ninety_seconds'),
+                'moj_es_cleanup_cron'
+            )) {
+                // bail
+                return false;
+            }
+        }
 
         return null;
     }
@@ -586,11 +605,29 @@ class Index extends Page
         $options = $this->admin->options();
         $stats = $this->admin->getStats();
         $force_clean_up = $options['force_cleanup'] ?? null;
+        $this->admin->message('Force cleanup -> can we clean? ' . ($force_clean_up ? 'YES' : 'NO'), $stats);
 
         if ($force_clean_up) {
             $this->admin->messageReset($stats);
-            $this->admin->message('Force cleanup -> can we clean? ' . ($force_clean_up ? 'YES' : 'NO'), $stats);
-            $this->admin->message('Force cleanup -> WE CLEANED: ' . $this->cleanUpIndexing(), $stats);
+
+            /**
+             * $this->cleanUpIndexing()
+             * Responses:
+             * - true = success
+             * - false = fatal failure
+             * - null = soft fail, will try again
+             */
+            $cleanup_message = '';
+            switch ($this->cleanUpIndexing()) {
+                case null:
+                    $cleanup_message = 'Failed. If index reports as cleaned (green box), please run force cleanup again';
+                    break;
+                case false:
+                    $cleanup_message = 'We encountered a fatal error. It is terminal, please debug.';
+                    break;
+                case true:
+            }
+            $this->admin->message('Force cleanup -> ' . $cleanup_message, $stats);
             $this->admin->updateOption('force_cleanup', null);
         }
 
