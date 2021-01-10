@@ -453,12 +453,17 @@ class Index extends Page
         // when using a load balancer, it is likely that a successful process could have begun
         if ($start_time = get_option('moj_es_cleanup_process_running')) {
             $this->admin->message('A successful process is already running; the option <strong style="color: #008000">moj_es_cleanup_process_running</strong> is set to true', $stats);
+            // timeout; self-remove if the process is taking too long
+            if ($start_time > strtotime("-5 minutes")) {
+                delete_option('moj_es_cleanup_process_running');
+            }
             return $start_time;
         }
 
         $file_location = $this->admin->importLocation() . 'moj-bulk-index-body.json';
         $this->admin->message('CHECK: Getting last index body from ' . $file_location, $stats);
 
+        clearstatcache(true, $file_location);
         if (file_exists($file_location)) {
             $this->admin->message('CHECK: The index body file exists', $stats);
             $file_size = filesize($file_location);
@@ -618,6 +623,11 @@ class Index extends Page
                 $this->admin->message('Cleanup could not be scheduled.', $stats);
             }
 
+            // make sure we can run
+            if (get_option('moj_es_cleanup_process_running')) {
+                delete_option('moj_es_cleanup_process_running');
+            }
+
             $this->admin->updateOption('restart_cleanup', null);
             $this->admin->setStats($stats);
             return;
@@ -642,6 +652,7 @@ class Index extends Page
                     $cleanup_message = 'We encountered a fatal error. It is terminal, please debug.';
                     break;
                 case true:
+                    $cleanup_message = 'Force cleanup was a success.';
             }
             $this->admin->message('Force cleanup -> ' . $cleanup_message, $stats);
             $this->admin->updateOption('force_cleanup', null);
