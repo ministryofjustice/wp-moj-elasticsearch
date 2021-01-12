@@ -275,6 +275,7 @@ class Index extends Page
      */
     public function sendBulk($body)
     {
+
         $stats = $this->admin->getStats();
         $body_new_size = mb_strlen($body, 'UTF-8');
 
@@ -307,8 +308,8 @@ class Index extends Page
         add_filter('ep_intercept_remote_request', [$this, 'interceptTrue']);
 
         if ($stats['bulk_body_size_bytes'] > $this->settings->payload_min) {
-            // prepare interception
-            add_filter('ep_do_intercept_request', [$this, 'requestIntercept'], 11, 4);
+
+            add_filter('ep_do_intercept_request', [$this, 'lambdaTest'], 11, 4);
             return true;
         }
 
@@ -375,6 +376,76 @@ class Index extends Page
         $stats['bulk_body_size'] = 0;
         $stats['total_bulk_requests'] = $stats['total_bulk_requests'] ?? 0;
         $stats['total_bulk_requests']++;
+        $this->admin->setStats($stats); // next, save request params
+
+        if ($request === 'doing-cleanup') {
+            $this->admin->message('Returning to the cleanup method...', $message_stats);
+        }
+
+        return $remote_request;
+    }
+
+
+    public function lambdaTest($request, $query, $args, $failures, &$message_stats = [])
+    {
+        $stats = $this->admin->getStats();
+
+        $fileList = $this->getBody();
+
+        foreach($fileList as $file) {
+
+            $result = $this->admin->s3->getObject([
+                'Bucket' => $this->admin->getS3Bucket(),
+                'Key' => $file
+            ]);
+
+            $bodyAsString = $result['Body']->__toString();
+
+            $args['body'] = $bodyAsString . "\n";
+            $args['timeout'] = 120;
+
+            // send payload
+            $remote_request = wp_remote_request($query['url'], $args);
+        }
+
+        // if (!$body) {
+        //     if ($request === 'doing-cleanup') {
+        //         $this->admin->message('The index body could not be accessed', $message_stats);
+        //     }
+        // }
+        // $args['body'] = $body;
+        // $args['timeout'] = 120; // for all requests
+
+        // if ($request === 'doing-cleanup') {
+        //     $this->admin->message('Executing <small><code>wp_remote_request()</code></small>', $message_stats);
+        // }
+
+        // // send payload
+        // $remote_request = wp_remote_request($query['url'], $args);
+
+        // if (is_wp_error($remote_request)) {
+        //     if ($request === 'doing-cleanup') {
+        //         $this->admin->message('There was a transport error: ' . $remote_request->get_error_message(), $message_stats);
+        //         $this->admin->message('About to sleep for 5 and send again in the file; ' . basename(__FILE__), $message_stats);
+        //     }
+        //     sleep(5);
+        //     return $this->requestIntercept($request, $query, $args, $failures, $message_stats);
+        // }
+
+        // if ($request === 'doing-cleanup') {
+        //     $this->admin->message('Last index body has been sent!', $message_stats);
+        // }
+
+        // // unlink($body_file);
+        // $this->clearBody();
+
+        // if ($request === 'doing-cleanup') {
+        //     $this->admin->message('Index body file has been emptied ready for next run.', $message_stats);
+        // }
+
+        $stats['bulk_body_size_bytes'] = 0;
+        // $stats['total_bulk_requests'] = $stats['total_bulk_requests'] ?? 0;
+        // $stats['total_bulk_requests']++;
         $this->admin->setStats($stats); // next, save request params
 
         if ($request === 'doing-cleanup') {
@@ -747,7 +818,7 @@ class Index extends Page
         );
 
         // the throttle
-        usleep(80000);
+        // usleep(80000);
     }
 
     /**
@@ -755,16 +826,27 @@ class Index extends Page
      */
     private function getBodyFromS3()
     {
+        $results = [];
         // TODO: there is another lambda function that gets all the files and consolidates in to one = bulk-body.json
         try {
             // Get the bulk file for sending to ES.
-            $result = $this->admin->s3->getObject([
+            // $result = $this->admin->s3->getObject([
+            //     'Bucket' => $this->admin->getS3Bucket(),
+            //     'Key' => $this->admin->getS3Key()
+            // ]);
+
+            $objects = $this->admin->s3->ListObjectsV2([
                 'Bucket' => $this->admin->getS3Bucket(),
-                'Key' => $this->admin->getS3Key()
+                'Prefix' => 'moj-es'
             ]);
 
-            return $result['Body'];
+            foreach ($objects['Contents'] as $object) {
+                $results[] = $object["Key"];
+            }
+
+            return $results;
         } catch (S3Exception $e) {
+            die('pusheen3');
             trigger_error($e->getMessage() . PHP_EOL);
         }
 
