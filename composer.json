@@ -1,7 +1,7 @@
 {
     "name": "ministryofjustice/wp-moj-elasticsearch",
     "description": "WP interface for managing elastic search",
-    "type": "wordpress-muplugin",
+    "type": "wordpress-plugin",
     "require": {
         "composer/installers": "^1.0"
     },
