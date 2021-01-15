@@ -79,6 +79,9 @@ class Index
         $new_index_key = array_rand($index_names[$new_index_names]); // int
         $new_index = $index_names[$new_index_names][$new_index_key]; // string
 
+        $namespace = (function_exists('env') ? env('ES_INDEX_NAMESPACE') : null);
+        $new_index =  ($namespace ? $namespace . "." : "") . $new_index;
+
         $site_url = get_site_url();
 
         if(str_contains($site_url, 'docker')){
@@ -94,9 +97,6 @@ class Index
         else {
             $new_index = 'prod.' . $new_index;
         }
-
-        $namespace = (function_exists('env') ? env('ES_INDEX_NAMESPACE') : null);
-        $new_index =  ($namespace ? $namespace . "." : "") . $new_index;
 
         update_option('_moj_es_current_index_name', $new_index);
 
