@@ -79,7 +79,22 @@ class Index
         $new_index_key = array_rand($index_names[$new_index_names]); // int
         $new_index = $index_names[$new_index_names][$new_index_key]; // string
 
-        // intranet.local[.rob].basilisk
+        $site_url = get_site_url();
+
+        if(str_contains($site_url, 'docker')){
+            $new_index = 'local.' . $new_index;
+        }
+        else if(str_contains($site_url, 'dev.wp.dsd.io')){
+            $new_index = 'dev.' . $new_index;
+
+        }
+        else if(str_contains($site_url, 'staging.wp.dsd.io')){
+            $new_index = 'staging.' . $new_index;
+        }
+        else {
+            $new_index = 'prod.' . $new_index;
+        }
+
         $namespace = (function_exists('env') ? env('ES_INDEX_NAMESPACE') : null);
         $new_index =  ($namespace ? $namespace . "." : "") . $new_index;
 
