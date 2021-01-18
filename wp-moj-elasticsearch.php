@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Plugin name: WP MoJ ElasticSearch
  * Plugin URI:  https://github.com/ministryofjustice/wp-moj-elasticsearch
@@ -11,6 +12,8 @@
  *
  **/
 
+// Do not allow access outside of WP to plugin
+defined('ABSPATH') || exit;
 /**
  * Get the root of the plugin
  */
@@ -22,6 +25,6 @@ use MOJElasticSearch\ElasticPressHooks;
 use MOJElasticSearch\Index;
 use MOJElasticSearch\SignAmazonEsRequests;
 
-new ElasticPressHooks;
-new Index;
-new SignAmazonEsRequests;
+new ElasticPressHooks();
+new Index();
+new SignAmazonEsRequests();

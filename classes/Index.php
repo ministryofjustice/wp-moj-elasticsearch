@@ -46,10 +46,9 @@ class Index
      */
     public function indexNames(string $index_name): string
     {
-        if (!empty($this->index_name_current)){
+        if (!empty($this->index_name_current)) {
             return $this->index_name_current;
-        }
-        else {
+        } else {
             return $this->getNewIndexName();
         }
     }
@@ -84,17 +83,13 @@ class Index
 
         $site_url = get_site_url();
 
-        if(str_contains($site_url, 'docker')){
+        if (str_contains($site_url, 'docker')) {
             $new_index = 'local.' . $new_index;
-        }
-        else if(str_contains($site_url, 'dev.wp.dsd.io')){
+        } elseif (str_contains($site_url, 'dev.wp.dsd.io')) {
             $new_index = 'dev.' . $new_index;
-
-        }
-        else if(str_contains($site_url, 'staging.wp.dsd.io')){
+        } elseif (str_contains($site_url, 'staging.wp.dsd.io')) {
             $new_index = 'staging.' . $new_index;
-        }
-        else {
+        } else {
             $new_index = 'prod.' . $new_index;
         }
 
@@ -102,6 +97,4 @@ class Index
 
         return $new_index;
     }
-
-
 }
