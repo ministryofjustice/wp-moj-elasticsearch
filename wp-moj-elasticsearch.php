@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Plugin name: WP MoJ ElasticSearch
  * Plugin URI:  https://github.com/ministryofjustice/wp-moj-elasticsearch
@@ -24,6 +25,6 @@ use MOJElasticSearch\ElasticPressHooks;
 use MOJElasticSearch\Index;
 use MOJElasticSearch\SignAmazonEsRequests;
 
-new ElasticPressHooks;
-new Index;
-new SignAmazonEsRequests;
+new ElasticPressHooks();
+new Index();
+new SignAmazonEsRequests();

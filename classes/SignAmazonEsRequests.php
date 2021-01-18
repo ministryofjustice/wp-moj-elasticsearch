@@ -26,7 +26,7 @@ class SignAmazonEsRequests
      * @param string $url
      * @return array
      */
-    public function signAwsRequest(array $args, string $url) : array
+    public function signAwsRequest(array $args, string $url): array
     {
         $ori_url = parse_url($url, PHP_URL_HOST);
         $ep_host = parse_url(get_option('ep_host', false), PHP_URL_HOST);
