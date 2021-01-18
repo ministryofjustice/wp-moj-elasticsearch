@@ -12,7 +12,7 @@
  **/
 
 // Do not allow access outside of WP to plugin
-//defined('ABSPATH') || exit;
+defined('ABSPATH') || exit;
 /**
  * Get the root of the plugin
  */
