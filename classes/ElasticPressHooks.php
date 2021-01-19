@@ -27,6 +27,19 @@ class ElasticPressHooks
     {
         add_filter('ep_prepare_meta_excluded_public_keys', [$this, 'excludeMetaMappingFields'], 10, 2);
         add_filter('ep_post_sync_args_post_prepare_meta', [$this, 'removePostArgs'], 10, 2);
+        add_filter('ep_query_post_type', [$this, 'postTypeFilter'], 10, 2);
+    }
+
+    public function postTypeFilter($post_types, $query)
+    {
+        if(is_search()){
+
+            if(isset($_GET['post_types']) ){
+                $post_types = $_GET['post_types'];
+
+            }
+         }
+        return $post_types;
     }
 
     /**
