@@ -37,7 +37,7 @@ class ElasticPressHooks
             if(isset($_GET['post_types']) ){
                 $post_type = sanitize_text_field($_GET['post_types']);
                 if(post_type_exists($post_type)) {
-                    $post_types = $_GET['post_types'];
+                    $post_types = $post_type;
                 }
 
             }
