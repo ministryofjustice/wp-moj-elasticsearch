@@ -5,7 +5,7 @@ WP MoJ ElasticSearch is a companion WordPress plugin to be installed with the El
 
 ## Features
 * Signs requests via AWS so that ElasticPress can communicate with our AWS ES domain.
-* Filters unused index fields out. We descovered our site was exceeding the 5000 field ElasticPress limit when indexing resulting in posts not being indexed. We have added in code to remove uneeded fields and reduce the field count to under < 3000.
+* Filters unused index fields out. We discovered our site was exceeding the 5000 field ElasticPress limit when indexing resulting in posts not being indexed. We have added in code to remove unneeded fields and reduce the field count to under < 3000.
 * Modify ElasticPress default index name. To help with our many environments and index tracking, we've introduced our own random index name generation. This hooks into the EP index name hook `ep_index_name`. The index naming pattern follows `<env>.<namespace>.<random-generated-name>`
 
 ## Issues
