@@ -1,7 +1,7 @@
 {
     "name": "ministryofjustice/wp-moj-elasticsearch",
     "description": "WP interface for managing elastic search",
-    "type": "wordpress-muplugin",
+    "type": "wordpress-plugin",
     "require": {
         "composer/installers": "^1.0"
     },
@@ -21,7 +21,10 @@
         ],
         "test-fix": [
             "vendor/bin/phpcbf"
-        ]
+        ],
+        "phpcs-config-set" : "phpcs --config-set ignore_warnings_on_exit 1",
+        "phpcs": "phpcs --extensions=php --ignore=*/vendor/* --standard=PSR12 .",
+        "phpcbf": "phpcbf --extensions=php --ignore=*/vendor/* --standard=PSR12 ."
     },
     "autoload": {
         "psr-4": {

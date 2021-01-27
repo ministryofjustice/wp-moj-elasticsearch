@@ -13,15 +13,9 @@ class ElasticPressHooks
 {
     use Debug;
 
-    /**
-     * Cache the index name
-     * @var string
-     */
-    private $alias_name = '';
-
-    public function __construct($alias)
+    public function __construct()
     {
-        $this->alias_name = $alias->name;
+       // $this->alias_name = $alias->name;
         $this->hooks();
     }
 
@@ -31,105 +25,23 @@ class ElasticPressHooks
      */
     public function hooks()
     {
-        add_filter('ep_elasticsearch_plugins', [$this, 'filterPlugins']);
-        add_filter('ep_allowed_documents_ingest_mime_types', [$this, 'filterMimeTypes']);
-        add_filter('ep_index_name', [$this, 'aliasName'], 10, 1);
         add_filter('ep_prepare_meta_excluded_public_keys', [$this, 'excludeMetaMappingFields'], 10, 2);
-        add_filter('ep_index_default_per_page', [$this, 'indexPerPage'], 10, 1);
-        add_filter('ep_config_mapping_request', [$this, 'mapRequest'], 10, 1);
         add_filter('ep_post_sync_args_post_prepare_meta', [$this, 'removePostArgs'], 10, 2);
+        add_filter('ep_query_post_type', [$this, 'postTypeFilter'], 10, 2);
     }
 
-    /**
-     * Add non-listed AWS ES plugins to filtered array
-     * @param array|bool $es_plugins
-     * @return array
-     */
-    public function filterPlugins($es_plugins): array
+    public function postTypeFilter($post_types, $query)
     {
-        $es_plugins['ingest-attachment'] = sanitize_text_field(EP_VERSION) ?? true;
-
-        return $es_plugins;
-    }
-
-    /**
-     * Add or remove document formats. Filtering here will affect attachment indexing.
-     * ES uses Apache Tika to convert binary documents into text and meta data.
-     * For a full list of available formats, use the link below.
-     *
-     * @param $mime_types = [
-     *           'pdf' => 'application/pdf',
-     *           'ppt' => 'application/vnd.ms-powerpoint',
-     *           'pptx' => 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-     *           'xls' => 'application/vnd.ms-excel',
-     *           'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-     *           'doc' => 'application/msword',
-     *           'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-     *       ];
-     * @return array
-     * @link https://tika.apache.org/1.24.1/formats.html#Full_list_of_Supported_Formats
-     */
-    public function filterMimeTypes($mime_types): array
-    {
-        // add the open document spreadsheet format
-        //$mime_types['ods'] = 'application/vnd.oasis.opendocument.spreadsheet';
-
-        $mime_types = array(
-            'pdf' => 'application/pdf',
-            'doc' => 'application/msword',
-            'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-        );
-        // remove a mime-type
-        //unset($mime_types['ods']);
-
-        return $mime_types;
-    }
-
-    /**
-     * MoJ ES uses index aliases rather than static index names. We do this to manage indexing more effectively
-     * Also, using aliases allows us to keep front end searches routed through Elasticsearch
-     *
-     * Produces a meaningful alias name that points to generic indexes.
-     *
-     * @param string
-     * @return string
-     *
-     * @uses str_replace()
-     */
-    public function aliasName(string $index_name): string
-    {
-        if (empty($this->alias_name)) {
-            // local, dev, and staging + alias clean up
-            $search = ['dockerwp', 'devwp', 'stagingwp', 'dsdiowp', '-post-1', '-term-1', '-user-1'];
-
-            // track the use of our development environments, remove everything else...
-            $replace = ['.local', '.dev', '.staging', ''];
-
-            $index_name = str_replace($search, $replace, $index_name);
-
-            // tag the live index
-            $search = ['justicegovukwp'];
-            $replace = ['.production'];
-            $alias = str_replace($search, $replace, $index_name);
-
-            // intranet.local
-            // intranet.dev, etc.
-            $this->alias_name = $alias;
-            update_option('_moj_es_alias_name', $alias);
+        if (is_search()) {
+            if (isset($_GET['post_types'])) {
+                $post_type = sanitize_text_field($_GET['post_types']);
+                
+                if (post_type_exists($post_type)) {
+                    $post_types = $post_type;
+                }
+            }
         }
-
-        return $this->alias_name;
-    }
-
-    /**
-     * Return detailed ElasticSearch response (not just ElasticPress plugin response)
-     * @param array
-     * @return array
-     */
-    public function mapRequest(array $request): array
-    {
-        echo 'ElasticSearch Response: ' . $request['body'] . PHP_EOL;
-        return $request;
+        return $post_types;
     }
 
     /**
@@ -217,10 +129,5 @@ class ElasticPressHooks
         }
 
         return $excluded;
-    }
-
-    public function indexPerPage()
-    {
-        return 1;
     }
 }
