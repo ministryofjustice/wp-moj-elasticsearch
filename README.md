@@ -1,7 +1,7 @@
 # WP MoJ ElasticSearch
 [![Maintainability](https://api.codeclimate.com/v1/badges/4f7226e63446f09b363c/maintainability)](https://codeclimate.com/github/ministryofjustice/wp-moj-elasticsearch/maintainability) [![Test Coverage](https://api.codeclimate.com/v1/badges/4f7226e63446f09b363c/test_coverage)](https://codeclimate.com/github/ministryofjustice/wp-moj-elasticsearch/test_coverage)
 
-WP MoJ ElasticSearch is a companion WordPress plugin to be installed with the ElasticPress plugin. It allows for greater customisation and enhancements unique to our AWS ElasticSearch configuration.
+WP MoJ ElasticSearch is a companion WordPress plugin to be installed with the ElasticPress plugin. It allows for greater customisation and enhancements unique to the MoJ's AWS ElasticSearch configuration.
 
 ## Features
 * Signs requests via AWS so that ElasticPress can communicate with our AWS ES domain.
